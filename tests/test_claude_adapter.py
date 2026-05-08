@@ -370,6 +370,56 @@ def test_chat_uses_total_cost_usd_when_present():
     assert resp.raw_response["api_metered_cost_usd"] == pytest.approx(0.0042)
 
 
+def test_chat_falls_back_to_pricing_when_total_cost_usd_missing(caplog):
+    """When claude -p response omits total_cost_usd (older CLI versions
+    or some error paths), the adapter falls back to PRICING-table compute
+    using input_tokens × in_per_mtok + output_tokens × out_per_mtok.
+
+    Drop's PR #8 review carry-forward: this fallback path needs explicit
+    test coverage symmetric with `test_chat_uses_total_cost_usd_when_present`.
+    """
+    a = ClaudeAdapter(claude_bin="/fake/claude")
+    a._verified = True
+
+    # Build a mock response WITHOUT total_cost_usd in the payload — claude
+    # -p versions before --output-format=json stabilized often omitted it.
+    payload = {
+        "result": "fallback path test",
+        "is_error": False,
+        "api_error_status": None,
+        "usage": {
+            "input_tokens": 200,
+            "output_tokens": 100,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+        },
+        # NB: NO total_cost_usd key
+        "duration_api_ms": 500,
+        "session_id": "sid-fallback",
+        "stop_reason": "end_turn",
+    }
+    proc = MagicMock(spec=subprocess.CompletedProcess)
+    proc.returncode = 0
+    proc.stdout = json.dumps(payload)
+    proc.stderr = ""
+
+    with patch("subprocess.run", return_value=proc):
+        resp = asyncio.run(
+            a.chat(
+                messages=[ChatMessage(role="user", content="x")],
+                model="claude-opus-4-7",
+            )
+        )
+
+    # Falls back to PRICING table: opus-4-7 = ($5.00, $25.00) per Mtok
+    # 200 in + 100 out = (200/1M × 5.00) + (100/1M × 25.00)
+    #                  = 0.001 + 0.0025 = 0.0035
+    expected = (200 / 1_000_000) * 5.00 + (100 / 1_000_000) * 25.00
+    assert resp.raw_response["api_metered_cost_usd"] == pytest.approx(expected)
+    # And subscription cost remains 0.0 regardless of fallback
+    assert resp.cost_usd == 0.0
+
+
 def test_chat_raises_on_nonzero_exit():
     a = ClaudeAdapter(claude_bin="/fake/claude")
     a._verified = True
