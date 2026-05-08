@@ -42,7 +42,16 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Optional
+from typing import Any, Literal, Optional
+
+
+# v0.5.1 (drop DM #722 + #728): client-side enum for mesh-gateway-accepted
+# DM kinds. Gateway validates server-side too; this is fail-fast at the
+# type-check + runtime layer so callers don't round-trip a known-bad value
+# (e.g., kind="review_request" → 400). Same shape as the validate_caller
+# pattern from swarph_shared. Add new kinds here when the gateway ships
+# them (current accepted set per server.py mesh-gateway):
+DM_KIND = Literal["fyi", "question", "answer", "status", "unblock"]
 
 import httpx
 from swarph_shared import validate_node_name
@@ -87,13 +96,35 @@ class MeshSecretLeakError(SwarphMeshError):
 _CRED_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("pypi token", re.compile(r"\bpypi-[A-Za-z0-9_-]{20,}")),
     ("anthropic api key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}")),
-    ("openai api key", re.compile(r"\bsk-[A-Za-z0-9]{20,}")),
+    # OpenAI key shapes: legacy ``sk-<48hex>`` + project keys
+    # ``sk-proj-<long>`` (newer, longer alphabet incl. ``_-``). Earlier
+    # regex ``sk-[A-Za-z0-9]{20,}`` missed sk-proj-... because of the
+    # underscore + hyphen in the body. Issue #4 tightening.
+    ("openai api key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}")),
+    # xAI / Grok key — xai-<long>. Same shape as OpenAI's hyphen-prefix
+    # pattern. Added in v0.5.1 alongside the Grok adapter shipped in
+    # v0.5.0; would have matched the key the user pasted in chat earlier
+    # this session if mesh send had been the destination.
+    ("xai api key", re.compile(r"\bxai-[A-Za-z0-9_-]{40,}")),
+    # DeepSeek api key — sk-<32hex> hex-only post the sk- prefix.
+    # Already covered loosely by the openai pattern but listing
+    # explicitly so the error message names the right provider.
+    ("deepseek api key", re.compile(r"\bsk-[a-f0-9]{32}\b")),
+    # Google Gemini / Cloud API keys — ``AIza<35-alnum>`` format.
+    # Common shape across Google's API tier; would catch GEMINI_API_KEY
+    # leaks. Issue #4 tightening (was missing).
+    ("google api key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}")),
     ("github token", re.compile(r"\bgh[ops]_[A-Za-z0-9]{30,}")),
     ("aws access key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("aws secret key", re.compile(r"\b[A-Za-z0-9/+=]{40}\b(?=.*aws)")),  # heuristic
     # JWT — three base64url segments separated by dots (stricter than the
     # generic shape so we don't false-fire on every blob with two dots).
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{15,}\.eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{15,}\b")),
+    # Mesh gateway tokens — long random base64url-shaped values stored in
+    # MESH_GATEWAY_TOKEN env. Heuristic shape: 40+ chars of url-safe
+    # base64 alphabet. False-positive rate higher than other patterns —
+    # operator escape via skip_secret_check=True is the right hatch.
+    ("possible mesh-gateway token", re.compile(r"\b[A-Za-z0-9_-]{48,}\b(?=.*MESH_GATEWAY_TOKEN)")),
 ]
 
 
@@ -279,21 +310,40 @@ class MeshClient:
         only if you have a legitimate reason to peek at another peer's
         inbox (gateway access-controls this; most callers will get
         their own inbox only).
+
+        v0.5.1 latent bug fix (discovered in Phase 5.6 daemon build):
+        the mesh-gateway query parameter is ``?to=`` — NOT ``?to_node=``.
+        The latter is silently ignored, returning ALL recent messages
+        regardless of recipient. Pre-fix every ``MeshClient.fetch``
+        caller saw outbound bleed-through unless they Python-side
+        filtered. The kwarg keeps its descriptive name for the
+        caller-facing API; only the wire-shape changes.
         """
-        params: dict[str, Any] = {"to_node": to_node or self.node}
+        # Defense-in-depth: filter from_node!=self_node client-side too,
+        # so any future gateway quirk that re-introduces outbound
+        # bleed-through doesn't silently break consumers (same shape
+        # as the daemon's filter).
+        target = to_node or self.node
+        params: dict[str, Any] = {"to": target}
         if unread_only:
             params["unread_only"] = "true"
         if limit is not None:
             params["limit"] = limit
         payload = await self._request("GET", "/messages", params=params)
         rows = payload.get("messages", payload) if isinstance(payload, dict) else payload
+        # Client-side defensive filter — only if fetching own inbox
+        # (i.e., target == self.node). When peeking at another peer's
+        # inbox via explicit to_node= override, return whatever gateway
+        # returns without filtering (caller asked for raw view).
+        if target == self.node:
+            rows = [r for r in rows if r.get("from_node") != self.node]
         return [MeshMessage.model_validate(r) for r in rows]
 
     async def send(
         self,
         *,
         to: str,
-        kind: str,
+        kind: DM_KIND,
         content: str,
         related_task_id: Optional[str] = None,
         thread_id: Optional[str] = None,
@@ -305,6 +355,11 @@ class MeshClient:
         Vector A + B contagion classes); raises ``ValueError`` /
         ``NotInRegistry`` on invalid recipient names BEFORE the POST.
 
+        ``kind`` is a ``Literal`` enum (see ``DM_KIND`` above) — type
+        checkers reject unknown values at lint time, and the runtime
+        guard below catches anyone passing ``kind`` as ``str``-typed
+        from a callsite that bypassed type-checking.
+
         Runs the best-effort credential leak detector on ``content``.
         Set ``skip_secret_check=True`` only when content has been
         inspected by the caller and the leak detector is producing a
@@ -313,6 +368,17 @@ class MeshClient:
         signal that the content is on a fence and rotate aggressively
         if you're not 100% sure.
         """
+        # Runtime kind enum check — defense-in-depth against str-typed
+        # callsites that slipped past type-checking. Same shape as
+        # validate_caller fail-fast discipline.
+        if kind not in {"fyi", "question", "answer", "status", "unblock"}:
+            raise ValueError(
+                f"MeshClient.send: kind={kind!r} is not a valid mesh-gateway "
+                f"DM kind. Accepted: fyi / question / answer / status / unblock. "
+                f"(Adding new kinds requires gateway-side support; check "
+                f"server.py POST /messages handler.)"
+            )
+
         # Recipient validation — strict=False because the gateway may
         # not be reachable from caller's perspective at the moment;
         # we still want regex + alias resolution.

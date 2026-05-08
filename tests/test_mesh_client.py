@@ -146,7 +146,10 @@ def test_fetch_uses_self_node_as_to_node_default():
     client = _client_with_handler(handler)
     asyncio.run(client.fetch())
     asyncio.run(client.aclose())
-    assert captured["params"]["to_node"] == "lab-ovh"
+    # v0.5.1 wire-shape fix: gateway accepts ?to= NOT ?to_node=.
+    # The latter is silently ignored, returning ALL recent messages.
+    assert captured["params"]["to"] == "lab-ovh"
+    assert "to_node" not in captured["params"]
     assert "unread_only" not in captured["params"]
 
 
@@ -193,11 +196,93 @@ def test_fetch_explicit_to_node_override():
     client = _client_with_handler(handler)
     asyncio.run(client.fetch(to_node="droplet"))
     asyncio.run(client.aclose())
-    assert captured["params"]["to_node"] == "droplet"
+    # Wire shape uses ?to=; kwarg name `to_node` preserved for caller API.
+    assert captured["params"]["to"] == "droplet"
+
+
+def test_fetch_filters_outbound_self_messages_when_querying_own_inbox():
+    """v0.5.1 defense-in-depth: even if gateway returns from_node==self
+    rows (latent ?to_node= bug pre-fix, or any future quirk), client
+    filters them out when target == self.node. Regression-tested."""
+    def handler(request):
+        return httpx.Response(200, json={"messages": [
+            {"id": 1, "from_node": "droplet", "to_node": "lab-ovh",
+             "kind": "fyi", "content": "real inbound",
+             "created_at": "2026-05-08T12:00:00Z", "read_at": None},
+            {"id": 2, "from_node": "lab-ovh", "to_node": "droplet",
+             "kind": "fyi", "content": "MY outbound — should be filtered",
+             "created_at": "2026-05-08T12:01:00Z", "read_at": None},
+        ], "n": 2})
+
+    client = _client_with_handler(handler)
+    msgs = asyncio.run(client.fetch())
+    asyncio.run(client.aclose())
+    assert len(msgs) == 1
+    assert msgs[0].from_node == "droplet"
+
+
+def test_fetch_does_NOT_filter_when_peeking_at_other_inbox():
+    """Explicit to_node= override → caller asked for raw view; no client-side
+    self-filter applies."""
+    def handler(request):
+        return httpx.Response(200, json={"messages": [
+            {"id": 1, "from_node": "lab-ovh", "to_node": "droplet",
+             "kind": "fyi", "content": "lab-to-droplet message",
+             "created_at": "2026-05-08T12:00:00Z", "read_at": None},
+        ], "n": 1})
+
+    client = _client_with_handler(handler)
+    msgs = asyncio.run(client.fetch(to_node="droplet"))
+    asyncio.run(client.aclose())
+    assert len(msgs) == 1  # not filtered out
 
 
 # ---------------------------------------------------------------------------
 # send — recipient validation + secret guard + payload shape
+# ---------------------------------------------------------------------------
+
+
+def test_send_kind_literal_runtime_guard_rejects_unknown():
+    """v0.5.1 (drop DM #722): kind=Literal enum + runtime guard. Client-side
+    fail-fast on bad kind so callers don't round-trip a 400 from the gateway.
+    """
+    from swarph_mesh import MeshClient
+
+    client = _client_with_handler(lambda r: httpx.Response(200, json={}))
+    with pytest.raises(ValueError, match="not a valid mesh-gateway"):
+        asyncio.run(
+            client.send(to="droplet", kind="review_request", content="x")
+        )
+    asyncio.run(client.aclose())
+
+
+def test_send_response_with_no_content_field_is_accepted():
+    """v0.5.1 (drop DM #722): MeshMessage.content is now Optional[str]=None
+    so success POST responses (which omit content) parse cleanly. Pre-fix
+    raised pydantic ValidationError on every successful send."""
+    def handler(request):
+        # Mirror gateway's actual POST /messages success shape — no
+        # content field returned.
+        return httpx.Response(200, json={
+            "id": 99,
+            "from_node": "lab-ovh",
+            "to_node": "droplet",
+            "kind": "fyi",
+            "thread_id": None,
+            "created_at": "2026-05-08T20:00:00Z",
+        })
+
+    client = _client_with_handler(handler)
+    msg = asyncio.run(client.send(to="droplet", kind="fyi", content="hello"))
+    asyncio.run(client.aclose())
+    assert msg.id == 99
+    assert msg.from_node == "lab-ovh"
+    assert msg.to_node == "droplet"
+    assert msg.content is None  # gateway didn't echo content; that's OK
+
+
+# ---------------------------------------------------------------------------
+# send — original tests below
 # ---------------------------------------------------------------------------
 
 

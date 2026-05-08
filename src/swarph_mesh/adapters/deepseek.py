@@ -25,8 +25,10 @@ Model lineup as of 2026-05-08:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import os
 import time
+import warnings
 from typing import AsyncIterator, Optional
 
 from swarph_mesh.exceptions import AdapterError
@@ -36,12 +38,40 @@ from swarph_mesh.types import ChatMessage, LLMResponse
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 
+# v0.5.1 fix (issue #6): V4-Pro promo expiry safeguard. The 75%-off
+# promo runs until DeepSeek ends it; we don't have an authoritative
+# end date but past promos have run ~3 months. Set a sentinel that
+# triggers a runtime warning when crossed — keeps attribution honest
+# even if the PRICING table goes stale-against-real.
+V4_PRO_PROMO_VERIFIED_AT = datetime.date(2026, 5, 8)
+V4_PRO_PROMO_VERIFY_AFTER = datetime.date(2026, 8, 8)  # 3 months out
+V4_PRO_NORMAL_PRICING: tuple[float, float] = (1.74, 3.48)
+V4_PRO_PROMO_PRICING: tuple[float, float] = (0.435, 0.87)
+
+
+def _v4_pro_pricing() -> tuple[float, float]:
+    """Return current V4-Pro pricing, warning if the promo verification
+    window has lapsed (issue #6 part 2). Returns the promo price
+    regardless — caller decides to override via PRICING dict if they
+    have fresher data."""
+    if datetime.date.today() > V4_PRO_PROMO_VERIFY_AFTER:
+        warnings.warn(
+            f"deepseek-v4-pro PRICING was last verified on "
+            f"{V4_PRO_PROMO_VERIFIED_AT}; the promo may have ended. "
+            f"Verify against https://api-docs.deepseek.com/quick_start/pricing/ "
+            f"and update PRICING + V4_PRO_PROMO_VERIFIED_AT in adapters/deepseek.py.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return V4_PRO_PROMO_PRICING
+
+
 # Per-Mtok pricing (USD), 2026-05-08 baseline.
 # Pricing source: https://api-docs.deepseek.com/quick_start/pricing/
 PRICING: dict[str, tuple[float, float]] = {
     # model_id: (input_per_mtok, output_per_mtok)
     "deepseek-v4-flash": (0.14, 0.28),
-    "deepseek-v4-pro": (0.435, 0.87),  # 75%-off promo; revert to (1.74, 3.48) when promo ends
+    "deepseek-v4-pro": _v4_pro_pricing(),  # 75%-off promo; warning fires past verify-after date
     # V3 aliases — same pricing as v4-flash by DeepSeek's current alias-routing
     "deepseek-chat": (0.14, 0.28),
     "deepseek-reasoner": (0.14, 0.28),
@@ -229,19 +259,30 @@ class DeepSeekAdapter:
 
 
 def _resolve_api_key() -> Optional[str]:
-    """Resolve DEEPSEEK_API_KEY from env, then from
-    ``/home/ubuntu/deepseek/.env`` (the legacy tool's config file shape).
+    """Resolve DEEPSEEK_API_KEY from env, then from a legacy ``.env``
+    file (defaults to ``/home/ubuntu/deepseek/.env`` for lab-OVH backwards
+    compatibility; override via ``DEEPSEEK_LEGACY_ENV_PATH`` env var).
+
+    v0.5.1 fix (issue #6): the hardcoded ``/home/ubuntu/deepseek/.env``
+    path bit non-lab-OVH consumers — droplet, GPU box, any other host
+    that pip-installs ``swarph-mesh`` and doesn't have that exact path
+    sees ``AdapterError`` on first invoke even when DEEPSEEK_API_KEY is
+    set elsewhere. Order: ``DEEPSEEK_API_KEY`` env → ``$DEEPSEEK_LEGACY_ENV_PATH``
+    file → ``/home/ubuntu/deepseek/.env`` file (legacy default) → ``None``.
 
     Returns ``None`` if no key found; the adapter raises a friendly
     AdapterError on first invoke when ``None``.
     """
     if os.environ.get("DEEPSEEK_API_KEY"):
         return os.environ["DEEPSEEK_API_KEY"]
-    legacy_env = "/home/ubuntu/deepseek/.env"
+    # Per-host override; falls back to lab-OVH legacy default.
+    legacy_env = os.environ.get(
+        "DEEPSEEK_LEGACY_ENV_PATH", "/home/ubuntu/deepseek/.env"
+    )
     try:
         from pathlib import Path
 
-        p = Path(legacy_env)
+        p = Path(legacy_env).expanduser()
         if p.exists():
             for line in p.read_text(encoding="utf-8").splitlines():
                 line = line.strip()

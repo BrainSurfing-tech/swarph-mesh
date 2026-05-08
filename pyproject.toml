@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.5.0"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.5.0 completes Phase 4 with OpenAIAdapter + GrokAdapter on top of v0.4.0's Gemini + DeepSeek + Claude(subscription) + MeshClient + SwarphCall."
+version = "0.5.1"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.5.1 batches issues #4 (secret-guard tightenings) + #6 (DEEPSEEK_LEGACY_ENV_PATH override + V4-Pro promo verify-after) + #9 (silent kwargs once-per-instance warning + CLAUDE_BIN docstring) + MeshClient.send response Optional[content] + kind=Literal enum + grok-2 PRICING removal + OpenAI _default tightening + ?to= latent bug fix in MeshClient.fetch."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
