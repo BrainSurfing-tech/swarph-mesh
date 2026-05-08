@@ -44,9 +44,16 @@ def get_adapter(provider: str, *, api_key: Optional[str] = None) -> LLMAdapter:
         _REGISTRY[provider] = adapter
         return adapter
 
+    if provider == "claude":
+        from swarph_mesh.adapters.claude import ClaudeAdapter
+
+        adapter = ClaudeAdapter(api_key=api_key)
+        _REGISTRY[provider] = adapter
+        return adapter
+
     raise UnknownProvider(
         f"no adapter registered for provider {provider!r}. "
-        "v0.3.0 ships gemini + deepseek; Claude/OpenAI/Grok ship in subsequent "
+        "v0.4.0 ships gemini + deepseek + claude; OpenAI/Grok ship in subsequent "
         "Phase 4 PRs per PLAN.md §3 ship-order."
     )
 
