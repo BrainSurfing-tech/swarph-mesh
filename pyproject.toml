@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swarph-mesh"
+version = "0.0.1"
+description = "Multi-LLM CLI + Python package with swarph-mesh integration. SCAFFOLD release — typed substrate only, no live adapters yet."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Pierre Samson" },
+    { name = "Claude Opus" },
+]
+keywords = ["swarph", "llm", "mesh", "cli", "multi-llm", "gemini", "claude", "deepseek"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "swarph-shared>=0.2.0",
+    "pydantic>=2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/darw007d/swarph-mesh"
+Source = "https://github.com/darw007d/swarph-mesh"
+CLI = "https://github.com/darw007d/swarph-cli"
+Plugin = "https://github.com/darw007d/swarph-meshlm"
+Spec = "https://github.com/darw007d/hedge-fund-mcp/blob/main/research/swarph_cli/PLAN.md"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+# NOTE: this repo is the substrate Python package only — pure library.
+# The `swarph` CLI binary lives in `darw007d/swarph-cli`; the Simon
+# Willison `llm` plugin in `darw007d/swarph-meshlm`. All three import
+# from this package as the bottom layer.
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
