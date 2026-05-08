@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.2.0"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.2.0 adds MeshClient (Phase 3) on top of v0.1.0's SwarphCall + GeminiAdapter."
+version = "0.3.0"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.3.0 adds DeepSeekAdapter (Phase 4 #2) on top of v0.2.0's MeshClient + Phase 1 SwarphCall + GeminiAdapter."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -34,6 +34,9 @@ dependencies = [
     "langchain-core>=0.3",
     # Phase 3 — MeshClient async HTTP wrapper (PLAN.md §5)
     "httpx>=0.27",
+    # Phase 4 — OpenAI-compatible adapters (DeepSeek, OpenAI, Grok all
+    # use the same client; Claude has its own SDK)
+    "openai>=1.0",
 ]
 
 [project.urls]

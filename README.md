@@ -16,18 +16,19 @@ All three sit on top of [`swarph-shared`](https://github.com/darw007d/swarph-sha
 
 ## Status
 
-**v0.2.0 — Phase 1 substrate + Phase 3 MeshClient.** Both falsifiability gates from PLAN.md §13 PASSED end-to-end against live infrastructure (real Gemini API + real lab-OVH mesh-gateway).
+**v0.3.0 — Phase 1 substrate + Phase 3 MeshClient + Phase 4 DeepSeek adapter.** Three PLAN.md §13 falsifiability gates PASSED end-to-end against live infrastructure (real Gemini API + real DeepSeek API + real lab-OVH mesh-gateway).
 
 Public surface:
 
 - `LLMAdapter` Protocol (runtime-checkable) + `ChatMessage` + `LLMResponse`
 - `SwarphCall` — caller-convention-validated entry point with hooks + attribution
 - `GeminiAdapter` — wraps `langgraph-genai-bridge` (Flex tier, context caching)
+- **`DeepSeekAdapter`** (NEW v0.3.0) — OpenAI-protocol-compatible client for V4-Flash / V4-Pro / V3 aliases; preserves reasoning content as `[reasoning]` preamble for portability
 - JSON-mode harness — retry-once with [USER]-turn feedback (per swarph-shared invariant)
 - Attribution: `FileAttributionWriter` default; `set_default_writer()` for production TSDB consumers
-- **`MeshClient`** (NEW v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in `lab_loop_drain.py` / `mesh_inbox_watcher.py` / `science_claude_inbox_drain.py`
+- `MeshClient` (v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in `lab_loop_drain.py` / `mesh_inbox_watcher.py` / `science_claude_inbox_drain.py`
 
-Tests: **75/76 passing** (73 offline + 2 live mesh smoke + 1 live gemini smoke gated on env tokens).
+Tests: **100+ passing** (97 offline + 1 live deepseek + 2 live mesh + 1 live gemini smoke; live tests gated on respective env tokens).
 
 ```python
 from swarph_mesh import SwarphCall, ChatMessage
@@ -71,8 +72,9 @@ The canonical PLAN with sequencing, falsifiability gates, and design rationale l
 |---|---|
 | **0** (v0.0.1) | Typed substrate — Protocol + dataclasses + exceptions |
 | **1** (v0.1.0) | Gemini adapter + `SwarphCall` surface + caller convention import + JSON-mode harness + attribution hook |
-| **3** (v0.2.0 — this release) | `MeshClient` async wrapper + recipient validation + mesh-secrets guard |
-| **4** | DeepSeek + Claude (subscription) + OpenAI adapters |
+| **3** (v0.2.0) | `MeshClient` async wrapper + recipient validation + mesh-secrets guard |
+| **4 #2** (v0.3.0 — this release) | **DeepSeek adapter** — OpenAI-protocol-compatible, V4-Flash default, V4-Pro premium, V3 aliases preserved, reasoning_content kept as `[reasoning]` preamble |
+| **4 #3-#5** | Claude (subscription) + OpenAI + Grok adapters (subsequent PRs) |
 | **5.5** | `swarph onboard` + `swarph ratify` (lives in `swarph-cli`, depends on this) |
 | **5.7** | `swarph daemon` + REPL drain coroutine (lives in `swarph-cli`) |
 | **6** | (already done) PyPI publish |

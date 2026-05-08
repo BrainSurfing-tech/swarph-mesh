@@ -1,8 +1,8 @@
 """Provider adapters — registry + dispatch.
 
-Phase 1 ships only the Gemini adapter (PLAN.md §3 ship order).
-Subsequent phases add DeepSeek / Claude / OpenAI / Grok by adding
-modules here + registering them in :func:`get_adapter`.
+Phase 1 shipped Gemini (PLAN.md §3 ship-order #1). Phase 4 adds
+DeepSeek (#2); subsequent Phase 4 PRs add Claude (#3), OpenAI (#4),
+Grok (#5).
 
 Adapters are singletons per provider — instantiated on first
 request, reused for the rest of the process. This matches the
@@ -23,8 +23,9 @@ _REGISTRY: dict[str, LLMAdapter] = {}
 def get_adapter(provider: str, *, api_key: Optional[str] = None) -> LLMAdapter:
     """Return the adapter for ``provider``, instantiating on first request.
 
-    Phase 1: only ``"gemini"`` is registered. Other providers raise
-    :class:`UnknownProvider`. Phase 4+ adds DeepSeek, Claude, OpenAI, Grok.
+    v0.3.0 ships ``"gemini"`` (Phase 1) and ``"deepseek"`` (Phase 4).
+    Other providers raise :class:`UnknownProvider`; subsequent Phase 4
+    PRs add Claude / OpenAI / Grok.
     """
     if provider in _REGISTRY:
         return _REGISTRY[provider]
@@ -36,9 +37,17 @@ def get_adapter(provider: str, *, api_key: Optional[str] = None) -> LLMAdapter:
         _REGISTRY[provider] = adapter
         return adapter
 
+    if provider == "deepseek":
+        from swarph_mesh.adapters.deepseek import DeepSeekAdapter
+
+        adapter = DeepSeekAdapter(api_key=api_key)
+        _REGISTRY[provider] = adapter
+        return adapter
+
     raise UnknownProvider(
         f"no adapter registered for provider {provider!r}. "
-        "Phase 1 ships gemini only; DeepSeek/Claude/OpenAI/Grok ship in Phase 4+."
+        "v0.3.0 ships gemini + deepseek; Claude/OpenAI/Grok ship in subsequent "
+        "Phase 4 PRs per PLAN.md §3 ship-order."
     )
 
 
