@@ -39,7 +39,15 @@ PRICING: dict[str, tuple[float, float]] = {
     "grok-4": (5.00, 15.00),
     "grok-3": (3.00, 15.00),
     "grok-3-mini": (0.30, 0.50),
-    "grok-2": (3.00, 15.00),  # alias to grok-3 per xAI's routing
+    # NOTE (drop DM #716 obs #2): grok-2 was previously listed at
+    # (3.00, 15.00) "alias to grok-3 per xAI routing". Removed in
+    # v0.5.1 — alias-routed models can silently re-route at the
+    # provider's discretion (e.g., grok-2 → grok-3-mini for cost
+    # optimization). Listing them in PRICING locks an assumption
+    # that may go stale silently. _default catches grok-2 calls at
+    # the same (3.00, 15.00) until xAI exposes a verified pricing
+    # API (issue tracked toward v0.6.0 list_models architectural
+    # promotion per #720).
     "_default": (3.00, 15.00),
 }
 

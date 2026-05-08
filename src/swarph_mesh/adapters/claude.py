@@ -69,6 +69,14 @@ def _resolve_claude_bin() -> str:
     2. ``$HOME/.local/bin/claude`` (standard install path)
     3. ``/usr/local/bin/claude``
     4. ``shutil.which("claude")`` last-resort PATH lookup
+
+    Per drop PR #8 review carry-forward (b) issue #9 #2: $HOME/.local
+    takes precedence over /usr/local. Right default for user-installed
+    binaries-take-precedence-over-system but lab-orchestrator + droplet
+    contexts may have system installs that should win. **Set ``CLAUDE_BIN``
+    env explicitly if both user + system installs are present and you
+    want the system one** — the env override beats both filesystem paths
+    and is the cleanest way to disambiguate without code changes.
     """
     if os.environ.get("CLAUDE_BIN"):
         return os.environ["CLAUDE_BIN"]
@@ -199,21 +207,45 @@ class ClaudeAdapter:
         model: str,
         system_prompt: Optional[str] = None,
         json_schema: Optional[dict] = None,
-        temperature: float = 0.7,  # noqa: ARG002 — not exposed by claude -p today
-        max_tokens: Optional[int] = None,  # noqa: ARG002 — not exposed today
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
     ) -> LLMResponse:
         """Invoke ``claude -p`` subscription-billed.
 
         ``temperature`` + ``max_tokens`` are accepted for Protocol
         compatibility but the current ``claude -p`` CLI doesn't expose
-        either as flags. Future versions may; we'll thread them when they
-        land.
+        either as flags. Once-per-instance warnings fire on the first
+        call that passes a non-default value so callers don't get
+        silently-ignored creativity / length expectations
+        (drop PR #8 review carry-forward (a) issue #9). Future
+        ``claude -p`` versions may expose these flags; we'll thread
+        them when they land.
 
         ``json_schema`` is passed to ``claude -p --json-schema`` for
         native structured-output enforcement (the CLI handles parsing +
         validation server-side). The adapter's ``LLMResponse.parsed`` is
         populated from the result text when the CLI confirms valid JSON.
         """
+        # Silent-kwargs warnings: once per instance, not per call (avoid
+        # log spam in REPL or daemon-loop contexts). Defaults pass through
+        # unwarned.
+        if temperature != 0.7 and not getattr(self, "_warned_temperature", False):
+            logger.warning(
+                "ClaudeAdapter.chat: temperature=%s is silently ignored — "
+                "claude -p CLI does not expose --temperature today. "
+                "(once-per-instance warning)",
+                temperature,
+            )
+            self._warned_temperature = True
+        if max_tokens is not None and not getattr(self, "_warned_max_tokens", False):
+            logger.warning(
+                "ClaudeAdapter.chat: max_tokens=%s is silently ignored — "
+                "claude -p CLI does not expose --max-tokens today. "
+                "(once-per-instance warning)",
+                max_tokens,
+            )
+            self._warned_max_tokens = True
+
         self.verify()  # lazy — runs once per adapter instance
 
         prompt_text = _build_prompt(messages, system_prompt)

@@ -39,8 +39,22 @@ PRICING: dict[str, tuple[float, float]] = {
     "o3": (10.00, 40.00),
     "o3-mini": (1.10, 4.40),
     "o4-mini": (1.10, 4.40),
-    "gpt-5": (5.00, 20.00),  # rumored/extrapolated; update when public
-    "_default": (2.50, 10.00),
+    # gpt-5 entry held until verified against OpenAI's pricing page.
+    # Per drop DM #719: gpt-5 + gpt-5.5 are both live as of ~2026-05-01,
+    # so the entry is no longer "rumored/extrapolated" — but the (5.00,
+    # 20.00) numbers were pre-launch extrapolation, which may be
+    # stale-against-real. Verification deferred to v0.5.2 with online
+    # pricing-page check (commander-gated since the verify-then-update
+    # cycle benefits from human eyes on OpenAI's pricing tier table).
+    "gpt-5": (5.00, 20.00),
+    # _default tightening (drop DM #716 obs #3): under-bill-on-uncertainty
+    # preference per token-spend memory. Lean toward gpt-4o-mini
+    # (0.15/0.60) as the conservative undercount default — if a caller
+    # invokes a typo or unknown model that OpenAI happens to accept,
+    # we under-attribute rather than over-attribute. Auditor signal
+    # "this looks suspiciously cheap" beats "we silently overcharged
+    # this caller's budget for an unknown model".
+    "_default": (0.15, 0.60),
 }
 
 

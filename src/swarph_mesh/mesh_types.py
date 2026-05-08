@@ -35,13 +35,28 @@ class MeshPeer(BaseModel):
 
 
 class MeshMessage(BaseModel):
-    """One row from ``GET /messages``."""
+    """One row from ``GET /messages`` (or the success response of ``POST /messages``).
+
+    v0.5.1 fix (drop DM #722 + #728): ``content`` is now ``Optional[str] = None``.
+    The gateway's ``POST /messages`` success response returns
+    ``{id, from_node, to_node, kind, thread_id, created_at}`` — no content field.
+    Pre-fix, ``MeshClient.send`` raised ``pydantic.ValidationError`` on
+    every successful POST despite the message landing cleanly, trapping
+    callers wrapping ``send()`` in try/except into thinking the send failed
+    and retrying — a DM duplication risk. The content-required model was
+    correct for ``GET /messages`` rows (where content always present) but
+    wrong for POST responses; making it optional fits both shapes.
+    """
 
     id: int
     from_node: str
     to_node: str
-    kind: str = Field(..., description='"fyi" | "question" | "answer" | error" | ...')
-    content: str
+    kind: str = Field(..., description='"fyi" | "question" | "answer" | "status" | "unblock"')
+    content: Optional[str] = Field(
+        None,
+        description="Message body. Required on GET /messages rows; absent in "
+        "POST /messages success responses.",
+    )
     created_at: str = Field(..., description="ISO timestamp of mesh-gateway insert.")
     read_at: Optional[str] = Field(None, description="ISO timestamp when first marked read; None = unread.")
     related_task_id: Optional[str] = Field(None)
