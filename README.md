@@ -16,7 +16,7 @@ All three sit on top of [`swarph-shared`](https://github.com/darw007d/swarph-sha
 
 ## Status
 
-**v0.4.0 — Phase 1 substrate + Phase 3 MeshClient + Phase 4 #2 DeepSeek + Phase 4 #3 Claude (subscription).** Four PLAN.md §13 falsifiability gates PASSED end-to-end against live infrastructure (real Gemini API + real DeepSeek API + real lab-OVH mesh-gateway + real `claude -p` subscription path).
+**v0.5.0 — Phase 4 complete.** All five adapters shipped: Gemini + DeepSeek + Claude (subscription) + OpenAI + Grok, plus Phase 3 MeshClient. Six PLAN.md §13 falsifiability gates PASSED end-to-end against live infrastructure (real Gemini API + real DeepSeek API + real lab-OVH mesh-gateway + real `claude -p` subscription path + real OpenAI API + real xAI API).
 
 Public surface:
 
@@ -24,12 +24,14 @@ Public surface:
 - `SwarphCall` — caller-convention-validated entry point with hooks + attribution
 - `GeminiAdapter` — wraps `langgraph-genai-bridge` (Flex tier, context caching)
 - `DeepSeekAdapter` (v0.3.0) — OpenAI-protocol-compatible client for V4-Flash / V4-Pro / V3 aliases; preserves reasoning content as `[reasoning]` preamble for portability
-- **`ClaudeAdapter`** (NEW v0.4.0) — subprocess-based wrapper around `claude -p` for **subscription billing path** (no `ANTHROPIC_API_KEY` needed; reads `~/.claude/.credentials.json`). Reuses `swarph_shared.scrub_env_for_subprocess` to keep billing-relevant env keys out of the subprocess. `cost_usd=0.0` for subscription calls (honest flat-rate); metered-equivalent cost preserved in `raw_response["api_metered_cost_usd"]` for auditors.
+- `ClaudeAdapter` (v0.4.0) — subprocess-based wrapper around `claude -p` for **subscription billing path** (no `ANTHROPIC_API_KEY` needed; reads `~/.claude/.credentials.json`). Reuses `swarph_shared.scrub_env_for_subprocess` to keep billing-relevant env keys out of the subprocess. `cost_usd=0.0` for subscription calls (honest flat-rate); metered-equivalent cost preserved in `raw_response["api_metered_cost_usd"]` for auditors.
+- **`OpenAIAdapter`** (NEW v0.5.0) — native async via `openai.AsyncOpenAI` (no `asyncio.to_thread` threadpool ceiling). Pricing for `gpt-4o` / `gpt-4o-mini` / `o1` / `o3` / `o3-mini` / `o4-mini` / `gpt-5`. o-series `reasoning_content` preserved as `[reasoning]` preamble. `OPENAI_API_KEY` env fallback.
+- **`GrokAdapter`** (NEW v0.5.0) — xAI's OpenAI-compatible API at `https://api.x.ai/v1`, also via `AsyncOpenAI`. Pricing for `grok-4` / `grok-3` / `grok-3-mini` / `grok-2` (alias-routed). Dual env-var resolution: `XAI_API_KEY` (canonical) → `GROK_API_KEY` (alias). Same `[reasoning]` preamble shape as the rest of the adapter family.
 - JSON-mode harness — retry-once with [USER]-turn feedback (per swarph-shared invariant)
 - Attribution: `FileAttributionWriter` default; `set_default_writer()` for production TSDB consumers
 - `MeshClient` (v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in `lab_loop_drain.py` / `mesh_inbox_watcher.py` / `science_claude_inbox_drain.py`
 
-Tests: **131+ passing** (127 offline + 1 live claude subscription + 1 live deepseek + 2 live mesh + 1 live gemini smoke; live tests gated on respective env/creds).
+Tests: **174+ passing** (169 offline + 1 live claude subscription + 1 live deepseek + 2 live mesh + 1 live gemini + 1 live openai + 1 live grok smoke; live tests gated on respective env/creds).
 
 ```python
 from swarph_mesh import SwarphCall, ChatMessage
@@ -75,8 +77,8 @@ The canonical PLAN with sequencing, falsifiability gates, and design rationale l
 | **1** (v0.1.0) | Gemini adapter + `SwarphCall` surface + caller convention import + JSON-mode harness + attribution hook |
 | **3** (v0.2.0) | `MeshClient` async wrapper + recipient validation + mesh-secrets guard |
 | **4 #2** (v0.3.0) | **DeepSeek adapter** — OpenAI-protocol-compatible, V4-Flash default, V4-Pro premium, V3 aliases preserved, reasoning_content kept as `[reasoning]` preamble |
-| **4 #3** (v0.4.0 — this release) | **Claude subscription adapter** — wraps `claude -p` via subprocess, reads `~/.claude/.credentials.json`, billing-leak prevention via `scrub_env_for_subprocess` |
-| **4 #4-#5** | OpenAI + Grok adapters (subsequent PRs, built on `AsyncOpenAI` per issue #7) |
+| **4 #3** (v0.4.0) | **Claude subscription adapter** — wraps `claude -p` via subprocess, reads `~/.claude/.credentials.json`, billing-leak prevention via `scrub_env_for_subprocess` |
+| **4 #4 + #5** (v0.5.0 — this release) | **OpenAI + Grok adapters** — both native-async via `AsyncOpenAI` from day one (per issue #7); xAI on `base_url=https://api.x.ai/v1`; Phase 4 ship-order complete |
 | **5.5** | `swarph onboard` + `swarph ratify` (lives in `swarph-cli`, depends on this) |
 | **5.7** | `swarph daemon` + REPL drain coroutine (lives in `swarph-cli`) |
 | **6** | (already done) PyPI publish |
