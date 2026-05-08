@@ -51,10 +51,25 @@ def get_adapter(provider: str, *, api_key: Optional[str] = None) -> LLMAdapter:
         _REGISTRY[provider] = adapter
         return adapter
 
+    if provider == "openai":
+        from swarph_mesh.adapters.openai import OpenAIAdapter
+
+        adapter = OpenAIAdapter(api_key=api_key)
+        _REGISTRY[provider] = adapter
+        return adapter
+
+    if provider == "grok":
+        from swarph_mesh.adapters.grok import GrokAdapter
+
+        adapter = GrokAdapter(api_key=api_key)
+        _REGISTRY[provider] = adapter
+        return adapter
+
     raise UnknownProvider(
         f"no adapter registered for provider {provider!r}. "
-        "v0.4.0 ships gemini + deepseek + claude; OpenAI/Grok ship in subsequent "
-        "Phase 4 PRs per PLAN.md §3 ship-order."
+        "v0.5.0 ships all five Phase 4 adapters: gemini + deepseek + claude + "
+        "openai + grok. Subsequent phases add MeshClient streaming + REPL "
+        "(swarph-cli) per PLAN.md §13."
     )
 
 

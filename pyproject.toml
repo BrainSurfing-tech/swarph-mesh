@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.4.0"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.4.0 adds ClaudeAdapter (Phase 4 #3, subscription-billed via claude -p) on top of v0.3.0's GeminiAdapter + DeepSeekAdapter + MeshClient."
+version = "0.5.0"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.5.0 completes Phase 4 with OpenAIAdapter + GrokAdapter on top of v0.4.0's Gemini + DeepSeek + Claude(subscription) + MeshClient + SwarphCall."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
