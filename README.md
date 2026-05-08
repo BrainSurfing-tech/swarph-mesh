@@ -16,13 +16,29 @@ All three sit on top of [`swarph-shared`](https://github.com/darw007d/swarph-sha
 
 ## Status
 
-**v0.0.1 — SCAFFOLD.** Typed substrate only:
+**v0.1.0 — Phase 1 substrate.** Live `SwarphCall(provider="gemini")` works end-to-end against real Gemini API per PLAN.md §13 falsifiability gate.
 
-- `LLMAdapter` Protocol (runtime-checkable)
-- `ChatMessage`, `LLMResponse` pydantic dataclasses
-- Exception hierarchy (`SwarphMeshError` → `AdapterError` / `UnknownProvider`)
+Public surface:
 
-No live adapters yet. Phase 1 ships Gemini + SwarphCall.
+- `LLMAdapter` Protocol (runtime-checkable) + `ChatMessage` + `LLMResponse`
+- `SwarphCall` — public entry point with caller-convention validation, hooks, attribution
+- `GeminiAdapter` — wraps `langgraph-genai-bridge` (Flex tier, context caching)
+- JSON-mode harness — retry-once with [USER]-turn feedback (per swarph-shared invariant)
+- Attribution: `FileAttributionWriter` default; `set_default_writer()` for production TSDB consumers
+
+Tests: **43/43 passing** (42 offline + 1 live smoke gated on `GEMINI_API_KEY`).
+
+```python
+from swarph_mesh import SwarphCall, ChatMessage
+
+result = await SwarphCall(
+    provider="gemini",
+    caller="orchestrator.boss",
+).chat(
+    messages=[ChatMessage(role="user", content="hi")],
+)
+print(result.text, result.cost_usd, result.input_tokens)
+```
 
 ## Spec
 
@@ -34,8 +50,8 @@ The canonical PLAN with sequencing, falsifiability gates, and design rationale l
 
 | Phase | Scope |
 |---|---|
-| **0** (this release) | Typed substrate — Protocol + dataclasses + exceptions |
-| **1** | Gemini adapter + `SwarphCall` surface + caller convention import + Pydantic harness + 1 hook |
+| **0** (v0.0.1) | Typed substrate — Protocol + dataclasses + exceptions |
+| **1** (v0.1.0 — this release) | Gemini adapter + `SwarphCall` surface + caller convention import + JSON-mode harness + attribution hook |
 | **3** | `MeshClient` — replaces hand-rolled curl in `lab_loop_drain.py` etc. |
 | **4** | DeepSeek + Claude (subscription) + OpenAI adapters |
 | **5.5** | `swarph onboard` + `swarph ratify` (lives in `swarph-cli`, depends on this) |

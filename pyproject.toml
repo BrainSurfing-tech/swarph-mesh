@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.0.1"
-description = "Multi-LLM CLI + Python package with swarph-mesh integration. SCAFFOLD release — typed substrate only, no live adapters yet."
+version = "0.1.0"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.1.0 ships SwarphCall + GeminiAdapter (Phase 1 substrate per PLAN.md §13)."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ authors = [
 ]
 keywords = ["swarph", "llm", "mesh", "cli", "multi-llm", "gemini", "claude", "deepseek"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
@@ -29,6 +29,9 @@ classifiers = [
 dependencies = [
     "swarph-shared>=0.2.0",
     "pydantic>=2.0",
+    # Phase 1 — Gemini adapter wraps the bridge (PLAN.md §3 ship order #1)
+    "langgraph-genai-bridge>=0.1.5",
+    "langchain-core>=0.3",
 ]
 
 [project.urls]
