@@ -1,18 +1,22 @@
 """Lifecycle hooks per PLAN.md §9.
 
-Five hook points:
+v0.1.0 ships THREE hook points wired into :class:`HookSet`:
 
 * ``pre_call``  — before adapter dispatch
 * ``post_call`` — after adapter returns successfully
 * ``on_error``  — adapter raised
-* ``pre_parse`` — before JSON-mode parse
-* ``post_parse`` — after JSON parse (success or failure)
 
-v0.1.0 ships the Hook protocol + a default ``post_call`` hook that
-writes an :class:`AttributionEvent` via the configured
-:class:`AttributionWriter`. Other hook points are scaffolded as
-no-ops so callers can register additional hooks against a stable
-shape.
+PLAN.md §9 names two additional points (``pre_parse``, ``post_parse``)
+that wrap the JSON-mode harness. Those are NOT scaffolded in v0.1.0
+— add to :class:`HookSet` when a call site materializes that needs
+them. Documenting as-future per drop PR #1 review carry-forward #3
+(don't ship empty hook lists for hook points no caller has asked for).
+
+The default ``post_call`` hook writes an :class:`AttributionEvent`
+via the configured :class:`AttributionWriter`. Override at SwarphCall
+construction with ``hooks=HookSet()`` to opt out, or with
+``hooks=HookSet(post_call=[attribution_post_call(writer=...)])`` to
+swap the writer per-call.
 """
 
 from __future__ import annotations

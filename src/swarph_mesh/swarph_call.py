@@ -114,6 +114,15 @@ class SwarphCall:
         plumb timeouts through the bridge's underlying SDK call —
         an in-flight provider request that exceeds the timeout will
         complete on the SDK side but its result is discarded.
+
+        TODO(v0.2.0, drop PR #1 review carry-forward #1): asyncio
+        cancellation is Python-side only — the provider still bills
+        for the in-flight call even if we discard the result. Under
+        timeout-heavy workloads this creates an unbounded billing
+        tail. Thread the timeout through ``bridge.invoke(timeout=...)``
+        when the bridge surface supports it; otherwise document the
+        cost trade-off explicitly at every call site that uses
+        ``timeout_seconds``.
         """
         adapter = self.adapter
 
