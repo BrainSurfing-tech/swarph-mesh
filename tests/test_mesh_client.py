@@ -1,0 +1,448 @@
+"""Tests for MeshClient — offline only (mocked HTTP).
+
+Live falsifiability gate against the real lab-OVH gateway lives in
+``test_smoke_mesh.py``, gated on ``MESH_GATEWAY_TOKEN`` env.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+import httpx
+import pytest
+
+from swarph_mesh import (
+    MeshAuthError,
+    MeshClient,
+    MeshGatewayError,
+    MeshMessage,
+    MeshPeer,
+    MeshSecretLeakError,
+)
+from swarph_mesh.mesh_client import _check_no_secret
+
+
+# ---------------------------------------------------------------------------
+# Helpers — httpx MockTransport for offline tests
+# ---------------------------------------------------------------------------
+
+
+def _client_with_handler(handler) -> MeshClient:
+    """Build a MeshClient whose underlying httpx.AsyncClient uses a
+    MockTransport handler. Bypasses the lazy _ensure_client by
+    constructing the AsyncClient directly with the same shape.
+    """
+    transport = httpx.MockTransport(handler)
+    c = MeshClient(node="lab-ovh", token="test-token", validate_self_name=False)
+    c._client = httpx.AsyncClient(
+        base_url=c._gateway_url,
+        headers={"Authorization": f"Bearer {c._token}"},
+        timeout=c._timeout,
+        transport=transport,
+    )
+    return c
+
+
+# ---------------------------------------------------------------------------
+# Credential leak detector
+# ---------------------------------------------------------------------------
+
+
+def test_check_no_secret_passes_clean_text():
+    _check_no_secret("just regular content here")  # no raise
+
+
+def test_check_no_secret_catches_pypi_token():
+    with pytest.raises(MeshSecretLeakError, match="pypi token"):
+        _check_no_secret("upload with pypi-AgEIcHlwaS5vcmcCJDlhMTJjNTc2X" + "Y" * 30)
+
+
+def test_check_no_secret_catches_anthropic_key():
+    with pytest.raises(MeshSecretLeakError, match="anthropic"):
+        _check_no_secret("api key sk-ant-XXXXXXXXXXXXXXXXXXXXX1234567890")
+
+
+def test_check_no_secret_catches_github_token():
+    with pytest.raises(MeshSecretLeakError, match="github"):
+        _check_no_secret("ghp_" + "X" * 40)
+
+
+def test_check_no_secret_catches_jwt():
+    jwt = "eyJabcdefghijklmno0.eyJabcdefghijklmno0.signature_part_xxxxxxxx"
+    with pytest.raises(MeshSecretLeakError, match="jwt"):
+        _check_no_secret(jwt)
+
+
+def test_check_no_secret_skips_short_jwt_lookalikes():
+    """`eyJ.eyJ.x` shouldn't fire — too short to be a real JWT."""
+    _check_no_secret("eyJ.eyJ.x")  # no raise
+
+
+# ---------------------------------------------------------------------------
+# list_peers
+# ---------------------------------------------------------------------------
+
+
+def test_list_peers_unwraps_envelope():
+    def handler(request):
+        assert request.url.path == "/peers"
+        return httpx.Response(200, json={"peers": [
+            {"name": "lab-ovh", "url": "http://lab-ovh:8787",
+             "capabilities": {"runtime": "claude"},
+             "enabled": True},
+            {"name": "droplet", "url": "http://droplet:8787",
+             "capabilities": {}, "enabled": True},
+        ]})
+
+    client = _client_with_handler(handler)
+    peers = asyncio.run(client.list_peers())
+    asyncio.run(client.aclose())
+    assert len(peers) == 2
+    assert peers[0].name == "lab-ovh"
+    assert isinstance(peers[0], MeshPeer)
+    assert peers[1].name == "droplet"
+
+
+def test_list_peers_handles_bare_list_payload():
+    """Some gateway versions return bare list — same as swarph_shared.peer_registry."""
+    def handler(request):
+        return httpx.Response(200, json=[{"name": "x", "enabled": True}])
+
+    client = _client_with_handler(handler)
+    peers = asyncio.run(client.list_peers())
+    asyncio.run(client.aclose())
+    assert len(peers) == 1
+    assert peers[0].name == "x"
+
+
+def test_list_peers_accepts_unknown_extra_fields():
+    """Forward-compat: gateway adds fields, MeshPeer doesn't reject."""
+    def handler(request):
+        return httpx.Response(200, json={"peers": [{
+            "name": "future-peer",
+            "enabled": True,
+            "future_field_2027": "some-value",
+            "another_extra": {"nested": True},
+        }]})
+
+    client = _client_with_handler(handler)
+    peers = asyncio.run(client.list_peers())
+    asyncio.run(client.aclose())
+    assert peers[0].name == "future-peer"
+
+
+# ---------------------------------------------------------------------------
+# fetch
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_uses_self_node_as_to_node_default():
+    captured = {}
+
+    def handler(request):
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json={"messages": [], "n": 0})
+
+    client = _client_with_handler(handler)
+    asyncio.run(client.fetch())
+    asyncio.run(client.aclose())
+    assert captured["params"]["to_node"] == "lab-ovh"
+    assert "unread_only" not in captured["params"]
+
+
+def test_fetch_passes_unread_only_and_limit():
+    captured = {}
+
+    def handler(request):
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json={"messages": [], "n": 0})
+
+    client = _client_with_handler(handler)
+    asyncio.run(client.fetch(unread_only=True, limit=5))
+    asyncio.run(client.aclose())
+    assert captured["params"]["unread_only"] == "true"
+    assert captured["params"]["limit"] == "5"
+
+
+def test_fetch_returns_typed_messages():
+    def handler(request):
+        return httpx.Response(200, json={"messages": [
+            {"id": 1, "from_node": "droplet", "to_node": "lab-ovh",
+             "kind": "fyi", "content": "hi", "created_at": "2026-05-08T12:00:00Z",
+             "read_at": None},
+        ], "n": 1})
+
+    client = _client_with_handler(handler)
+    msgs = asyncio.run(client.fetch())
+    asyncio.run(client.aclose())
+    assert len(msgs) == 1
+    assert isinstance(msgs[0], MeshMessage)
+    assert msgs[0].id == 1
+    assert msgs[0].from_node == "droplet"
+    assert msgs[0].kind == "fyi"
+
+
+def test_fetch_explicit_to_node_override():
+    """Caller can peek at a different inbox if they have legitimate reason."""
+    captured = {}
+
+    def handler(request):
+        captured["params"] = dict(request.url.params)
+        return httpx.Response(200, json={"messages": [], "n": 0})
+
+    client = _client_with_handler(handler)
+    asyncio.run(client.fetch(to_node="droplet"))
+    asyncio.run(client.aclose())
+    assert captured["params"]["to_node"] == "droplet"
+
+
+# ---------------------------------------------------------------------------
+# send — recipient validation + secret guard + payload shape
+# ---------------------------------------------------------------------------
+
+
+def test_send_validates_recipient_name():
+    """Invalid (non-canonical) recipient → ValueError BEFORE the POST.
+
+    swarph_shared.validate_node_name with strict=False still applies
+    regex check + alias resolution.
+    """
+    client = MeshClient(node="lab-ovh", token="t", validate_self_name=False)
+    with pytest.raises(ValueError, match="naming convention"):
+        asyncio.run(client.send(to="Bad-Name", kind="fyi", content="x"))
+
+
+def test_send_resolves_known_alias():
+    """`drop` should resolve to canonical `droplet` via swarph_shared.KNOWN_ALIASES."""
+    captured = {}
+
+    def handler(request):
+        captured["body"] = request.read()
+        import json
+        captured["json"] = json.loads(captured["body"])
+        return httpx.Response(200, json={
+            "id": 1, "from_node": "lab-ovh", "to_node": "droplet",
+            "kind": "fyi", "content": "x", "created_at": "2026-05-08T12:00:00Z",
+            "read_at": None,
+        })
+
+    client = _client_with_handler(handler)
+    asyncio.run(client.send(to="drop", kind="fyi", content="x"))
+    asyncio.run(client.aclose())
+    # drop → droplet via KNOWN_ALIASES
+    assert captured["json"]["to_node"] == "droplet"
+
+
+def test_send_refuses_credential_in_content():
+    client = MeshClient(node="lab-ovh", token="t", validate_self_name=False)
+    leaky = "auth header: Bearer ghp_" + "X" * 40
+    with pytest.raises(MeshSecretLeakError):
+        asyncio.run(client.send(to="droplet", kind="fyi", content=leaky))
+
+
+def test_send_skip_secret_check_bypasses_guard():
+    """Operator escape hatch when content legitimately contains
+    credential-shape prose."""
+    captured = {}
+
+    def handler(request):
+        import json
+        captured["json"] = json.loads(request.read())
+        return httpx.Response(200, json={
+            "id": 1, "from_node": "lab-ovh", "to_node": "droplet",
+            "kind": "fyi", "content": "...", "created_at": "2026-05-08T12:00:00Z",
+            "read_at": None,
+        })
+
+    client = _client_with_handler(handler)
+    leaky = "discussing pypi-AgEIcHlwaS5vcmcCJDlhMTJjNTc2X" + "Y" * 30
+    asyncio.run(client.send(to="droplet", kind="fyi", content=leaky, skip_secret_check=True))
+    asyncio.run(client.aclose())
+    assert captured["json"]["content"] == leaky
+
+
+def test_send_returns_typed_message():
+    def handler(request):
+        return httpx.Response(200, json={
+            "id": 42, "from_node": "lab-ovh", "to_node": "droplet",
+            "kind": "fyi", "content": "x", "created_at": "2026-05-08T12:00:00Z",
+            "read_at": None,
+        })
+
+    client = _client_with_handler(handler)
+    sent = asyncio.run(client.send(to="droplet", kind="fyi", content="x"))
+    asyncio.run(client.aclose())
+    assert isinstance(sent, MeshMessage)
+    assert sent.id == 42
+    assert sent.to_node == "droplet"
+
+
+def test_send_passes_optional_fields():
+    captured = {}
+
+    def handler(request):
+        import json
+        captured["json"] = json.loads(request.read())
+        return httpx.Response(200, json={
+            "id": 1, "from_node": "lab-ovh", "to_node": "droplet",
+            "kind": "answer", "content": "x", "created_at": "2026-05-08T12:00:00Z",
+            "read_at": None,
+        })
+
+    client = _client_with_handler(handler)
+    asyncio.run(client.send(
+        to="droplet", kind="answer", content="x",
+        related_task_id="T-1", thread_id="thr-abc",
+    ))
+    asyncio.run(client.aclose())
+    assert captured["json"]["related_task_id"] == "T-1"
+    assert captured["json"]["thread_id"] == "thr-abc"
+
+
+# ---------------------------------------------------------------------------
+# mark_read
+# ---------------------------------------------------------------------------
+
+
+def test_mark_read_hits_correct_path():
+    captured = {}
+
+    def handler(request):
+        captured["path"] = request.url.path
+        return httpx.Response(200, json={"ok": True})
+
+    client = _client_with_handler(handler)
+    asyncio.run(client.mark_read(123))
+    asyncio.run(client.aclose())
+    assert captured["path"] == "/messages/123/read"
+
+
+# ---------------------------------------------------------------------------
+# register
+# ---------------------------------------------------------------------------
+
+
+def test_register_sends_self_name_in_body():
+    captured = {}
+
+    def handler(request):
+        import json
+        captured["json"] = json.loads(request.read())
+        return httpx.Response(200, json={
+            "name": "lab-ovh", "enabled": True,
+            "url": "http://lab-ovh:8787",
+        })
+
+    client = _client_with_handler(handler)
+    asyncio.run(client.register(
+        url="http://lab-ovh:8787",
+        capabilities={"runtime": "claude", "can_claim_tasks": True},
+    ))
+    asyncio.run(client.aclose())
+    assert captured["json"]["name"] == "lab-ovh"
+    assert captured["json"]["url"] == "http://lab-ovh:8787"
+    assert captured["json"]["capabilities"]["runtime"] == "claude"
+
+
+# ---------------------------------------------------------------------------
+# Auth / error handling
+# ---------------------------------------------------------------------------
+
+
+def test_401_raises_mesh_auth_error():
+    def handler(request):
+        return httpx.Response(401, json={"detail": "missing token"})
+
+    client = _client_with_handler(handler)
+    with pytest.raises(MeshAuthError, match="MESH_GATEWAY_TOKEN"):
+        asyncio.run(client.list_peers())
+    asyncio.run(client.aclose())
+
+
+def test_403_raises_mesh_auth_error():
+    def handler(request):
+        return httpx.Response(403, json={"detail": "forbidden"})
+
+    client = _client_with_handler(handler)
+    with pytest.raises(MeshAuthError):
+        asyncio.run(client.list_peers())
+    asyncio.run(client.aclose())
+
+
+def test_500_raises_mesh_gateway_error():
+    def handler(request):
+        return httpx.Response(500, text="internal error")
+
+    client = _client_with_handler(handler)
+    with pytest.raises(MeshGatewayError, match="500"):
+        asyncio.run(client.list_peers())
+    asyncio.run(client.aclose())
+
+
+def test_request_error_wraps_as_mesh_gateway_error():
+    def handler(request):
+        raise httpx.ConnectError("connection refused")
+
+    client = _client_with_handler(handler)
+    with pytest.raises(MeshGatewayError, match="request failed"):
+        asyncio.run(client.list_peers())
+    asyncio.run(client.aclose())
+
+
+def test_non_json_response_raises():
+    def handler(request):
+        return httpx.Response(200, text="<html>not json</html>")
+
+    client = _client_with_handler(handler)
+    with pytest.raises(MeshGatewayError, match="non-JSON"):
+        asyncio.run(client.list_peers())
+    asyncio.run(client.aclose())
+
+
+# ---------------------------------------------------------------------------
+# Construction + lifecycle
+# ---------------------------------------------------------------------------
+
+
+def test_construction_falls_back_to_env_token(monkeypatch):
+    monkeypatch.setenv("MESH_GATEWAY_TOKEN", "env-token-12345")
+    client = MeshClient(node="lab-ovh", validate_self_name=False)
+    assert client._token == "env-token-12345"
+
+
+def test_construction_falls_back_to_env_url(monkeypatch):
+    monkeypatch.setenv("MESH_GATEWAY_URL", "http://custom-gateway:9999")
+    client = MeshClient(node="lab-ovh", token="t", validate_self_name=False)
+    assert client._gateway_url == "http://custom-gateway:9999"
+
+
+def test_construction_uses_default_url_when_no_env(monkeypatch):
+    monkeypatch.delenv("MESH_GATEWAY_URL", raising=False)
+    client = MeshClient(node="lab-ovh", token="t", validate_self_name=False)
+    assert client._gateway_url == "http://lab-ovh:8788"
+
+
+def test_self_name_alias_resolves_at_construction(monkeypatch):
+    """Constructing a client with an alias resolves to canonical."""
+    # Skip registry check (offline), but regex + alias should still resolve
+    client = MeshClient(node="drop", validate_self_name=True, token="t")
+    assert client.node == "droplet"
+
+
+def test_async_context_manager_closes_client():
+    handler = lambda request: httpx.Response(200, json={"peers": []})
+
+    async def _go():
+        async with MeshClient(node="lab-ovh", token="t", validate_self_name=False) as c:
+            # Force a connection so _client is real
+            transport = httpx.MockTransport(handler)
+            c._client = httpx.AsyncClient(
+                base_url=c._gateway_url, transport=transport,
+                headers={"Authorization": f"Bearer t"},
+            )
+            await c.list_peers()
+            assert c._client is not None and not c._client.is_closed
+        # After __aexit__, client is closed
+        assert c._client is None
+
+    asyncio.run(_go())

@@ -64,7 +64,16 @@ from swarph_mesh.hooks import (
     default_hooks,
 )
 
-__version__ = "0.1.0"
+# Phase 3 surfaces — MeshClient + types
+from swarph_mesh.mesh_client import (
+    MeshAuthError,
+    MeshClient,
+    MeshGatewayError,
+    MeshSecretLeakError,
+)
+from swarph_mesh.mesh_types import MeshMessage, MeshPeer
+
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
@@ -92,4 +101,11 @@ __all__ = [
     "HookSet",
     "attribution_post_call",
     "default_hooks",
+    # MeshClient (Phase 3)
+    "MeshClient",
+    "MeshPeer",
+    "MeshMessage",
+    "MeshGatewayError",
+    "MeshAuthError",
+    "MeshSecretLeakError",
 ]
