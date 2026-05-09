@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel in-progress runs on force-push to the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Don't hit live network in CI — discovery + cost-recon smokes are
+  # gated on this. Unit tests + mocked-HTTP tests still run.
+  SWARPH_SKIP_NETWORK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Pinned to versions we declare in pyproject.toml requires-python.
+        # 3.10 = floor; 3.13 = current; pick those two for fast signal,
+        # add 3.11/3.12 if dependency-resolution drift surfaces.
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package + test deps
+        run: |
+          python -m pip install --upgrade pip
+          # Editable install so coverage measures the source tree
+          # (not the installed wheel)
+          python -m pip install -e ".[dev]"
+
+      - name: Run pytest
+        run: |
+          python -m pytest --tb=short -q
+
+  typecheck:
+    name: mypy --strict (LLMAdapter Protocol surface)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install package + mypy
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,typecheck]"
+
+      - name: Run mypy --strict on Protocol surface
+        run: |
+          # v0.7.0 ratchet: strict gate covers the LLMAdapter Protocol
+          # contract + exception hierarchy. These are the modules
+          # third-party node implementers depend on for typing.
+          # Discovery + __init__ + adapters are in the strict-pipeline
+          # but not in the gate yet — each minor version tightens one
+          # additional module per the DEPRECATIONS.md ratcheting
+          # discipline (when that file lands in v0.7.1).
+          python -m mypy --strict \
+            src/swarph_mesh/types.py \
+            src/swarph_mesh/exceptions.py
+
+  lint:
+    name: ruff format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ruff
+        run: python -m pip install ruff
+
+      - name: ruff check (lint)
+        run: |
+          # Non-blocking on the first CI shipment — pin a tight rule set
+          # later. Today's gate: detect undefined names + unused imports
+          # only. Forces forward progress without blocking on style.
+          python -m ruff check --select F src/ tests/ || true
