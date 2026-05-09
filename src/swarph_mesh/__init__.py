@@ -91,15 +91,20 @@ from swarph_mesh.discovery import (
     invalidate_catalog,
     invalidate_pricing,
     is_model_supported,
+    is_retired,
     list_anthropic_pricing,
     list_models,
+    normalize_deepseek_id,
+    normalize_model_id,
+    normalize_xai_id,
     pricing_for_anthropic_model,
     pricing_for_gemini_model,
     reconcile_openai_cost,
     reconcile_xai_cost,
+    retirement_date,
 )
 
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 
 __all__ = [
     "__version__",
@@ -154,4 +159,10 @@ __all__ = [
     "reconcile_xai_cost",
     "DeepSeekBalance",
     "fetch_deepseek_balance",
+    # v0.6.2 — centralized normalizers + retirement registry
+    "normalize_xai_id",
+    "normalize_deepseek_id",
+    "normalize_model_id",
+    "is_retired",
+    "retirement_date",
 ]

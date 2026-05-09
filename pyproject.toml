@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.6.1"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.6.1 PRICING table catch-up + alias-resolution: corrects gpt-5 over-attribution (was $5/$20, real $1.25/$10), adds gpt-4.1 + gpt-5-mini/nano + xAI grok-4.x family + DeepSeek slash-prefix normalization + Anthropic dated-build aliases + Gemini 2.0 family. v0.6.0 substrate (discovery module + LLMAdapter.list_models()) intact."
+version = "0.6.2"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.6.2 OpenAI full-pricing catch-up + drop's #745 carry-forwards: corrects o3 4x over-attribution (was 10/40, real 2/8), adds gpt-5.1/5.4/5.5 families + gpt-5-pro + o1-pro + o3-pro from authoritative openai.com/api/pricing source, centralizes normalizers + adds shared retirement registry pattern."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
