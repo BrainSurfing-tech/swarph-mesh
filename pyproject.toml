@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.7.0"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.0 ships the foundations layer: GitHub Actions CI (pytest matrix + mypy --strict on the public Protocol surface + ruff), PEP 561 py.typed marker (third-party type-checkers see swarph-mesh's types), protocol-stability snapshot tests guarding against silent contract drift in LLMAdapter / discovery public API. Establishes graph-protocol versioning policy."
+version = "0.7.1"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.1 ships the security policy: SECURITY.md with explicit in-scope vulnerability classes (credential leakage, privilege boundary bypass, cost over/under-attribution, ratification bypass, protocol contract violation, catalog poisoning, DM contagion), reporting channels, response timeline, hardening commitments per release. Federation forward-compat noted."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
