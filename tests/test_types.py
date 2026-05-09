@@ -124,6 +124,10 @@ class _StubAdapter:
     def cost_per_token(self, model: str) -> tuple[float, float]:
         return (0.0, 0.0)
 
+    def list_models(self, *, ttl_seconds: int = 86400):
+        # v0.6.0 architectural promotion — new Protocol method.
+        return []
+
 
 def test_stub_adapter_is_llm_adapter():
     """Structural Protocol — _StubAdapter has the right attributes
@@ -153,6 +157,9 @@ def test_partial_adapter_is_not_llm_adapter():
 
         def cost_per_token(self, model: str) -> tuple[float, float]:
             return (0.0, 0.0)
+
+        def list_models(self, *, ttl_seconds: int = 86400):
+            return []
 
     assert not isinstance(_Partial(), LLMAdapter)
 

@@ -257,6 +257,12 @@ class DeepSeekAdapter:
         """Return (input_per_mtok, output_per_mtok) USD for ``model``."""
         return PRICING.get(model, PRICING["_default"])
 
+    def list_models(self, *, ttl_seconds: int = 86400):
+        """v0.6.0 catalog query — AIMLAPI primary + per-provider fallback."""
+        from swarph_mesh.discovery import list_models as _list
+
+        return _list(provider=self.name, ttl_seconds=ttl_seconds)
+
 
 def _resolve_api_key() -> Optional[str]:
     """Resolve DEEPSEEK_API_KEY from env, then from a legacy ``.env``

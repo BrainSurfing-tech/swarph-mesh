@@ -73,7 +73,28 @@ from swarph_mesh.mesh_client import (
 )
 from swarph_mesh.mesh_types import MeshMessage, MeshPeer
 
-__version__ = "0.5.1"
+# v0.6.0 — model discovery (AIMLAPI primary + per-provider fallback)
+# + heterogeneous-source pricing (Gemini Cloud Billing API live, Anthropic
+# manual table from claude.com/pricing). OpenAI/xAI/DeepSeek pricing
+# stays in adapter-local PRICING tables until programmatic sources surface.
+from swarph_mesh.discovery import (
+    CostBucket,
+    ModelInfo,
+    ProviderPricing,
+    fetch_gemini_pricing,
+    fetch_openai_cost_buckets,
+    get_model_info,
+    invalidate_catalog,
+    invalidate_pricing,
+    is_model_supported,
+    list_anthropic_pricing,
+    list_models,
+    pricing_for_anthropic_model,
+    pricing_for_gemini_model,
+    reconcile_openai_cost,
+)
+
+__version__ = "0.6.0"
 
 __all__ = [
     "__version__",
@@ -108,4 +129,19 @@ __all__ = [
     "MeshGatewayError",
     "MeshAuthError",
     "MeshSecretLeakError",
+    # discovery (v0.6.0)
+    "ModelInfo",
+    "ProviderPricing",
+    "list_models",
+    "is_model_supported",
+    "get_model_info",
+    "invalidate_catalog",
+    "fetch_gemini_pricing",
+    "pricing_for_gemini_model",
+    "pricing_for_anthropic_model",
+    "list_anthropic_pricing",
+    "invalidate_pricing",
+    "CostBucket",
+    "fetch_openai_cost_buckets",
+    "reconcile_openai_cost",
 ]
