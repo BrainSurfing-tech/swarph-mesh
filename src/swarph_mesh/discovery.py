@@ -421,7 +421,7 @@ def is_retired(provider: str, model_id: str, *, today: Optional[_dt.date] = None
         retirement_date = _dt.date.fromisoformat(retirement)
     except ValueError:
         return False
-    today = today or _dt.datetime.now(_dt.UTC).date()
+    today = today or _dt.datetime.now(_dt.timezone.utc).date()
     return today >= retirement_date
 
 
@@ -699,7 +699,7 @@ def fetch_gemini_pricing(
 
     import datetime as _dt
 
-    verified_at = _dt.datetime.now(_dt.UTC).isoformat()
+    verified_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
 
     out: list[ProviderPricing] = []
     page_token: Optional[str] = None
@@ -930,7 +930,7 @@ def fetch_deepseek_balance(
 
     import datetime as _dt
 
-    fetched_at = _dt.datetime.now(_dt.UTC).isoformat()
+    fetched_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
 
     balance_infos = data.get("balance_infos", [])
     # Find USD entry; fall back to first entry if no USD

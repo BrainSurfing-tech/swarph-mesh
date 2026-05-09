@@ -30,6 +30,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - Concurrency group prevents overlapping deploys.
 - **`docs` extras in `pyproject.toml`** — `pip install swarph-mesh[docs]` bootstraps `sphinx>=7.0` + `furo` + `myst-parser`.
 
+### Fixed
+
+- **Python 3.10 support honored** — `discovery.py` had three `_dt.UTC` callsites (Python 3.11+ only) at lines 424, 702, 933, despite `pyproject.toml` declaring `requires-python = ">=3.10"`. Replaced with `_dt.timezone.utc` (works on all 3.10+). The same failure was silently present on PRs #17/#18/#19 (v0.7.0/v0.7.1/v0.7.2) where the pytest 3.10 matrix arm was treated as non-blocking; v0.7.3 review (drop DM #763) caught the discipline drift and fixed it in-PR. Discovered tests on Python 3.11/3.13 always passed; only 3.10 leg failed with `AttributeError: module 'datetime' has no attribute 'UTC'`. Honors the declared contract surface in keeping with the doc-surface-as-hardening framing of this release.
+- **`docs/_static/.gitkeep`** added — empty directory wasn't tracked by git, causing strict-mode `sphinx-build -W` to fail in CI on `html_static_path entry '_static' does not exist` (worked locally because Sphinx tolerates missing `_static` in non-strict mode). Caught by drop on first CI invocation — confirms the doc-surface-as-contract-enforcement hypothesis on its first real run.
+
 ### Notes
 
 - Strict-mode build catches autodoc misses (missing docstring on a public symbol, broken intersphinx link) so the contract documentation stays in lockstep with the contract.
