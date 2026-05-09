@@ -6,3 +6,6 @@ build/
 .pytest_cache/
 *.pyc
 docs/_build/
+.coverage
+coverage.xml
+htmlcov/
