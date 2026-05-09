@@ -94,18 +94,41 @@ def _resolve_claude_bin() -> str:
     return str(home_local)  # default — verify_subscription_setup will fail loud
 
 
-# Anthropic per-Mtok pricing (USD), 2026-05-08 baseline. Used for
-# ``raw_response["api_metered_cost_usd"]`` (the metered-equivalent cost
-# that subscription users get for free). LLMResponse.cost_usd is always
-# 0.0 for this adapter since subscription billing is flat-rate.
+# Anthropic per-Mtok pricing (USD).
+# v0.6.1 catch-up: extended with full Anthropic lineup verified
+# against claude.com/pricing on 2026-05-09. Subset of the full table
+# in swarph_mesh.discovery._ANTHROPIC_PRICING (which carries cache +
+# batch dimensions). LLMResponse.cost_usd is always 0.0 for this
+# adapter since subscription billing is flat-rate; this table only
+# populates ``raw_response["api_metered_cost_usd"]``.
+#
+# Includes dated-build aliases so AIMLAPI catalog IDs (e.g.
+# ``claude-opus-4-1-20250805``) resolve to PRICING without falling
+# through to _default.
 PRICING: dict[str, tuple[float, float]] = {
     # model_id: (input_per_mtok, output_per_mtok)
+    # — Opus tier (premium) —
     "claude-opus-4-7": (5.00, 25.00),
-    "claude-sonnet-4-6": (3.00, 15.00),
-    "claude-haiku-4-5": (1.00, 5.00),
-    # Older versions kept for back-compat with callers pinning old IDs
     "claude-opus-4-6": (5.00, 25.00),
     "claude-opus-4-5": (5.00, 25.00),
+    "claude-opus-4-5-20251101": (5.00, 25.00),  # dated build alias
+    "claude-opus-4-1": (15.00, 75.00),  # NEW v0.6.1 — older premium tier
+    "claude-opus-4-1-20250805": (15.00, 75.00),
+    "claude-opus-4": (15.00, 75.00),
+    "claude-opus-4-20250514": (15.00, 75.00),
+    "claude-opus-3": (15.00, 75.00),  # deprecated
+    # — Sonnet tier (balanced) —
+    "claude-sonnet-4-6": (3.00, 15.00),
+    "claude-sonnet-4-5": (3.00, 15.00),  # NEW v0.6.1
+    "claude-sonnet-4-5-20250929": (3.00, 15.00),
+    "claude-sonnet-4": (3.00, 15.00),  # NEW v0.6.1
+    "claude-sonnet-4-20250514": (3.00, 15.00),
+    "claude-sonnet-3-7": (3.00, 15.00),  # deprecated
+    # — Haiku tier (cheap) —
+    "claude-haiku-4-5": (1.00, 5.00),
+    "claude-haiku-4-5-20251001": (1.00, 5.00),
+    "claude-haiku-3-5": (0.80, 4.00),  # NEW v0.6.1
+    "claude-haiku-3": (0.25, 1.25),  # NEW v0.6.1
     "_default": (5.00, 25.00),
 }
 

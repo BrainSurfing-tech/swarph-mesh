@@ -654,7 +654,11 @@ def fetch_gemini_pricing(
 _ANTHROPIC_PRICING_VERIFIED_AT = "2026-05-09"
 
 # Tuple shape: (base_input, cache_write_5m, cache_write_1h, cache_hit, output)
+# v0.6.1 adds dated-build aliases (e.g. claude-opus-4-5-20251101) so
+# AIMLAPI catalog IDs resolve here too. Canonical + dated forms point
+# to identical pricing.
 _ANTHROPIC_PRICING: dict[str, tuple[float, float, float, float, float]] = {
+    # Canonical short-form IDs
     "claude-opus-4-7":   (5.00,  6.25,  10.00, 0.50, 25.00),
     "claude-opus-4-6":   (5.00,  6.25,  10.00, 0.50, 25.00),
     "claude-opus-4-5":   (5.00,  6.25,  10.00, 0.50, 25.00),
@@ -668,6 +672,14 @@ _ANTHROPIC_PRICING: dict[str, tuple[float, float, float, float, float]] = {
     "claude-haiku-3-5":  (0.80,  1.00,  1.60,  0.08,  4.00),
     "claude-opus-3":     (15.00, 18.75, 30.00, 1.50, 75.00),  # deprecated
     "claude-haiku-3":    (0.25,  0.30,  0.50,  0.03,  1.25),
+    # v0.6.1 — dated-build aliases (AIMLAPI catalog format).
+    # Each maps to the same pricing as its canonical short form.
+    "claude-opus-4-5-20251101":   (5.00,  6.25,  10.00, 0.50, 25.00),
+    "claude-opus-4-1-20250805":   (15.00, 18.75, 30.00, 1.50, 75.00),
+    "claude-opus-4-20250514":     (15.00, 18.75, 30.00, 1.50, 75.00),
+    "claude-sonnet-4-5-20250929": (3.00,  3.75,  6.00,  0.30, 15.00),
+    "claude-sonnet-4-20250514":   (3.00,  3.75,  6.00,  0.30, 15.00),
+    "claude-haiku-4-5-20251001":  (1.00,  1.25,  2.00,  0.10,  5.00),
 }
 
 
@@ -719,6 +731,405 @@ def list_anthropic_pricing() -> list[ProviderPricing]:
         for model_id in _ANTHROPIC_PRICING
         if pricing_for_anthropic_model(model_id) is not None
     ]
+
+
+# ---------------------------------------------------------------------------
+# DeepSeek balance — current credit snapshot (different shape from
+# OpenAI/xAI which expose historical per-day buckets)
+# ---------------------------------------------------------------------------
+#
+# DeepSeek does NOT expose a historical-usage API at well-known paths.
+# What they DO expose is ``/user/balance`` — a snapshot of currently-
+# available credits. Authoritative per-token pricing for the table in
+# ``swarph_mesh.adapters.deepseek.PRICING`` lives at:
+#
+#   https://api-docs.deepseek.com/quick_start/pricing/
+#
+# Re-verify when ``_DEEPSEEK_PRICING_VERIFIED_AT`` (in adapter module)
+# crosses the verify-after threshold. To approximate historical spend,
+# callers can record balance at periodic checkpoints and diff over time:
+#
+#   t0 = fetch_deepseek_balance().total_balance
+#   ... do work ...
+#   t1 = fetch_deepseek_balance().total_balance
+#   approx_spent_in_window = t0 - t1
+#
+# Auth: regular ``DEEPSEEK_API_KEY`` (NO admin/management key class —
+# DeepSeek doesn't have one). Same key the chat adapter uses.
+
+DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance"
+
+
+@dataclass
+class DeepSeekBalance:
+    """Snapshot of a DeepSeek account's credit balance.
+
+    Unlike OpenAI's ``CostBucket`` and xAI's ``XAICostBucket``,
+    DeepSeek's API exposes only current balance — not historical
+    per-day usage. Use ``fetched_at`` to track snapshots over time;
+    diff successive balances to approximate windowed spend.
+    """
+
+    total_balance: float
+    granted_balance: float
+    topped_up_balance: float
+    currency: str = "USD"
+    is_available: bool = True
+    fetched_at: Optional[str] = None  # ISO timestamp of fetch
+    raw: Optional[dict] = None
+
+
+def fetch_deepseek_balance(
+    *, api_key: Optional[str] = None, timeout: float = 10.0
+) -> Optional[DeepSeekBalance]:
+    """Hit ``GET /user/balance`` on DeepSeek for current credit state.
+
+    ``api_key`` resolves from arg → ``$DEEPSEEK_API_KEY`` env →
+    ``/home/ubuntu/deepseek/.env`` legacy fallback (matches
+    ``DeepSeekAdapter._resolve_api_key`` shape). The Anthropic-protocol
+    endpoint at ``/anthropic/v1/messages`` is documented in the adapter
+    module docstring but not used by this balance primitive.
+
+    Returns ``None`` if no key is configured OR the call fails.
+
+    Note: DeepSeek can have multiple ``balance_infos`` entries
+    (different currencies). We return the USD entry; callers needing
+    other currencies can inspect ``raw``.
+    """
+    # Reuse adapter's resolution (env + legacy file fallback)
+    try:
+        from swarph_mesh.adapters.deepseek import (
+            _resolve_api_key as _adapter_resolve,
+        )
+
+        key = api_key or _adapter_resolve()
+    except ImportError:
+        key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+
+    if not key:
+        logger.debug(
+            "discovery.balance: DEEPSEEK_API_KEY unset; balance fetch skipped"
+        )
+        return None
+
+    req = urllib.request.Request(
+        DEEPSEEK_BALANCE_URL,
+        headers={
+            "Authorization": f"Bearer {key}",
+            "User-Agent": "swarph-mesh/0.6.1 (deepseek-balance)",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError) as exc:
+        logger.warning("discovery.balance: DeepSeek fetch failed: %s", exc)
+        return None
+
+    import datetime as _dt
+
+    fetched_at = _dt.datetime.now(_dt.UTC).isoformat()
+
+    balance_infos = data.get("balance_infos", [])
+    # Find USD entry; fall back to first entry if no USD
+    usd_entry = next(
+        (b for b in balance_infos if b.get("currency") == "USD"),
+        balance_infos[0] if balance_infos else None,
+    )
+    if not usd_entry:
+        return DeepSeekBalance(
+            total_balance=0.0,
+            granted_balance=0.0,
+            topped_up_balance=0.0,
+            is_available=bool(data.get("is_available", False)),
+            fetched_at=fetched_at,
+            raw=data,
+        )
+    # DeepSeek returns balance values as strings (per the live response);
+    # convert to floats
+    return DeepSeekBalance(
+        total_balance=float(usd_entry.get("total_balance", 0)),
+        granted_balance=float(usd_entry.get("granted_balance", 0)),
+        topped_up_balance=float(usd_entry.get("topped_up_balance", 0)),
+        currency=usd_entry.get("currency", "USD"),
+        is_available=bool(data.get("is_available", True)),
+        fetched_at=fetched_at,
+        raw=data,
+    )
+
+
+# ---------------------------------------------------------------------------
+# xAI cost reconciliation — management-key gated (privilege boundary)
+# ---------------------------------------------------------------------------
+#
+# xAI exposes a Management API at ``https://management-api.x.ai`` with
+# team-scoped billing endpoints. The usage endpoint is more sophisticated
+# than OpenAI's costs (POST body with timezone + aggregation + grouping
+# vs simple query params).
+#
+# Privilege class: management keys can manage API keys, view billing
+# data, configure spending limits. Same blast radius shape as OpenAI
+# admin keys — env-only, never on-disk.
+#
+# Resolution: ``XAI_MANAGEMENT_KEY`` env (Bearer auth) + ``XAI_TEAM_ID``
+# env (path scope; obtained from xAI console settings — not discoverable
+# via API per the auth docs). Both must be set; missing either returns
+# empty list.
+
+XAI_MANAGEMENT_BASE_URL = "https://management-api.x.ai"
+
+
+def _resolve_xai_management_key(arg: Optional[str]) -> Optional[str]:
+    if arg:
+        return arg
+    return os.environ.get("XAI_MANAGEMENT_KEY")
+
+
+def _resolve_xai_team_id(arg: Optional[str]) -> Optional[str]:
+    if arg:
+        return arg
+    return os.environ.get("XAI_TEAM_ID")
+
+
+@dataclass
+class XAICostBucket:
+    """One time-bucket of xAI usage data per ``/v1/billing/teams/.../usage``.
+
+    xAI's response shape exposes ``line_items`` per bucket, each with
+    a model description (e.g., "Chat grok-4-0709") and aggregated
+    usage. We extract sum-style cost data into ``total_usd`` when
+    available.
+    """
+
+    start_time: str  # ISO timestamp (xAI returns these)
+    end_time: str
+    total_usd: float = 0.0
+    line_items: list = field(default_factory=list)
+    raw_bucket: Optional[dict] = None
+
+
+def _to_xai_datetime(ts: str) -> str:
+    """Convert ISO 8601 timestamps to xAI's expected
+    ``YYYY-MM-DD HH:MM:SS`` format (no T, no timezone suffix).
+    Accepts ``2026-05-01T00:00:00Z`` and ``2026-05-01T00:00:00+00:00``
+    and the bare format itself."""
+    if "T" not in ts:
+        return ts  # already in xAI format
+    # Strip timezone suffix (Z or ±HH:MM) and replace T with space
+    stripped = ts.replace("T", " ")
+    for suffix in ("Z", "+00:00"):
+        if stripped.endswith(suffix):
+            stripped = stripped[: -len(suffix)]
+            break
+    # Handle other timezone offsets — drop everything from + or last - of
+    # time portion (preserve the date's hyphens)
+    if " " in stripped:
+        date_part, time_part = stripped.split(" ", 1)
+        # Strip ±HH:MM from time_part
+        for sign in ("+", "-"):
+            idx = time_part.find(sign)
+            if idx > 0:
+                time_part = time_part[:idx]
+                break
+        stripped = f"{date_part} {time_part}"
+    return stripped
+
+
+def fetch_xai_cost_buckets(
+    *,
+    start_time: str,  # ISO 8601 OR "YYYY-MM-DD HH:MM:SS"
+    end_time: str,
+    management_key: Optional[str] = None,
+    team_id: Optional[str] = None,
+    time_unit: str = "TIME_UNIT_DAY",  # xAI enum: TIME_UNIT_DAY/HOUR/MONTH/etc.
+    timezone: str = "Etc/GMT",
+    timeout: float = 15.0,
+) -> list[XAICostBucket]:
+    """Hit xAI's ``POST /v1/billing/teams/{team_id}/usage`` for a date
+    range.
+
+    ``start_time`` / ``end_time`` accept either ISO 8601 (e.g.,
+    ``"2026-05-01T00:00:00Z"``) or xAI's native format
+    (``"2026-05-01 00:00:00"``). ISO inputs are converted internally;
+    timezone is supplied via the separate ``timezone`` parameter
+    (default ``"Etc/GMT"``).
+
+    ``time_unit`` is one of xAI's enum strings: ``TIME_UNIT_DAY``,
+    ``TIME_UNIT_HOUR``, ``TIME_UNIT_MONTH``, ``TIME_UNIT_CALENDAR_WEEK``,
+    ``TIME_UNIT_QUARTER_HOUR``, ``TIME_UNIT_MINUTE``,
+    ``TIME_UNIT_SECOND``, ``TIME_UNIT_NONE``.
+
+    ``management_key`` resolves from arg → ``$XAI_MANAGEMENT_KEY`` env.
+    ``team_id`` resolves from arg → ``$XAI_TEAM_ID`` env (obtained from
+    xAI console — not discoverable via API).
+
+    PRIVILEGE BOUNDARY: management keys can manage API keys, view
+    billing, configure spending limits. swarph-mesh does NOT persist
+    the key to disk — env-only.
+
+    Returns ``[]`` if either credential is missing OR the call fails
+    (4xx/5xx/network).
+    """
+    key = _resolve_xai_management_key(management_key)
+    tid = _resolve_xai_team_id(team_id)
+    if not key or not tid:
+        logger.debug(
+            "discovery.cost_reconciliation: XAI_MANAGEMENT_KEY or "
+            "XAI_TEAM_ID unset; xAI usage fetch skipped"
+        )
+        return []
+
+    url = f"{XAI_MANAGEMENT_BASE_URL}/v1/billing/teams/{tid}/usage"
+    # xAI's documented body shape (verified against docs.x.ai). Wrapped
+    # in `analyticsRequest`; uses camelCase + enum-string values; date
+    # format is "YYYY-MM-DD HH:MM:SS" (NOT ISO 8601 despite docs page
+    # mentioning ISO elsewhere).
+    body = {
+        "analyticsRequest": {
+            "timeRange": {
+                "startTime": _to_xai_datetime(start_time),
+                "endTime": _to_xai_datetime(end_time),
+                "timezone": timezone,
+            },
+            "timeUnit": time_unit,
+            "values": [
+                {"name": "usd", "aggregation": "AGGREGATION_SUM"},
+            ],
+            "groupBy": ["description"],
+            "filters": [],
+        }
+    }
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "User-Agent": "swarph-mesh/0.6.1 (xai-cost-reconciliation)",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            err_body = json.loads(exc.read().decode("utf-8"))
+        except Exception:
+            err_body = {"detail": str(exc)}
+        logger.warning(
+            "discovery.cost_reconciliation: xAI returned %d: %s",
+            exc.code,
+            err_body,
+        )
+        return []
+    except (urllib.error.URLError, json.JSONDecodeError, OSError) as exc:
+        logger.warning(
+            "discovery.cost_reconciliation: xAI fetch failed: %s", exc
+        )
+        return []
+
+    # xAI's actual response shape (verified against live smoke
+    # 2026-05-09): timeSeries[] grouped by model, each with
+    # dataPoints[] per time bucket. Pivot to per-day buckets that
+    # aggregate across all model groups, preserving per-model
+    # breakdown in line_items so callers can drill in.
+    #
+    #   {
+    #     "timeSeries": [
+    #       {
+    #         "group": ["Chat grok-3-mini"],
+    #         "groupLabels": ["Chat grok-3-mini"],
+    #         "dataPoints": [
+    #           {"timestamp": "2026-05-08T00:00:00Z", "values": [0.00027585]},
+    #           ...
+    #         ]
+    #       }
+    #     ],
+    #     "limitReached": false
+    #   }
+
+    series = data.get("timeSeries", []) or []
+    # Aggregate per timestamp across all groups
+    by_timestamp: dict[str, dict] = {}
+    for s in series:
+        if not isinstance(s, dict):
+            continue
+        group_label = (
+            s.get("groupLabels", s.get("group", ["?"]))[0]
+            if s.get("groupLabels") or s.get("group")
+            else "?"
+        )
+        for dp in s.get("dataPoints", []):
+            ts = dp.get("timestamp", "")
+            values = dp.get("values", [])
+            # Each value position corresponds to one entry in our
+            # request's `values[]` array; we requested only ``usd``
+            # SUM, so values[0] is total USD for this group+bucket.
+            usd = float(values[0]) if values else 0.0
+            entry = by_timestamp.setdefault(
+                ts, {"start_time": ts, "end_time": ts, "total_usd": 0.0,
+                     "line_items": []}
+            )
+            entry["total_usd"] += usd
+            if usd > 0:
+                entry["line_items"].append(
+                    {"description": group_label, "usd": usd}
+                )
+
+    out: list[XAICostBucket] = []
+    for ts in sorted(by_timestamp.keys()):
+        e = by_timestamp[ts]
+        out.append(
+            XAICostBucket(
+                start_time=e["start_time"],
+                end_time=e["end_time"],
+                total_usd=e["total_usd"],
+                line_items=e["line_items"],
+                raw_bucket=None,
+            )
+        )
+    return out
+
+
+def reconcile_xai_cost(
+    *,
+    start_time: str,
+    end_time: str,
+    swarph_attributed_usd: Optional[float] = None,
+    management_key: Optional[str] = None,
+    team_id: Optional[str] = None,
+) -> dict:
+    """xAI parallel of :func:`reconcile_openai_cost`. Compares xAI's
+    actual billed costs against swarph-mesh's attribution.jsonl total
+    and returns drift report.
+
+    Returns same shape as ``reconcile_openai_cost`` but with
+    ``xai_actual_usd`` instead of ``openai_actual_usd``.
+    """
+    buckets = fetch_xai_cost_buckets(
+        start_time=start_time,
+        end_time=end_time,
+        management_key=management_key,
+        team_id=team_id,
+    )
+    actual = sum(b.total_usd for b in buckets)
+    drift_usd: Optional[float] = None
+    drift_pct: Optional[float] = None
+    if swarph_attributed_usd is not None and swarph_attributed_usd > 0:
+        drift_usd = actual - swarph_attributed_usd
+        drift_pct = (drift_usd / swarph_attributed_usd) * 100.0
+    return {
+        "xai_actual_usd": actual,
+        "swarph_attributed_usd": swarph_attributed_usd,
+        "drift_usd": drift_usd,
+        "drift_pct": drift_pct,
+        "buckets": buckets,
+        "window_start": start_time,
+        "window_end": end_time,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -79,10 +79,14 @@ from swarph_mesh.mesh_types import MeshMessage, MeshPeer
 # stays in adapter-local PRICING tables until programmatic sources surface.
 from swarph_mesh.discovery import (
     CostBucket,
+    DeepSeekBalance,
     ModelInfo,
     ProviderPricing,
+    XAICostBucket,
+    fetch_deepseek_balance,
     fetch_gemini_pricing,
     fetch_openai_cost_buckets,
+    fetch_xai_cost_buckets,
     get_model_info,
     invalidate_catalog,
     invalidate_pricing,
@@ -92,9 +96,10 @@ from swarph_mesh.discovery import (
     pricing_for_anthropic_model,
     pricing_for_gemini_model,
     reconcile_openai_cost,
+    reconcile_xai_cost,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 
 __all__ = [
     "__version__",
@@ -144,4 +149,9 @@ __all__ = [
     "CostBucket",
     "fetch_openai_cost_buckets",
     "reconcile_openai_cost",
+    "XAICostBucket",
+    "fetch_xai_cost_buckets",
+    "reconcile_xai_cost",
+    "DeepSeekBalance",
+    "fetch_deepseek_balance",
 ]
