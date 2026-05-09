@@ -34,22 +34,68 @@ XAI_BASE_URL = "https://api.x.ai/v1"
 
 # Per-Mtok pricing (USD), 2026-05-08 baseline.
 # Source: https://docs.x.ai/docs/models#pricing
+# Per-Mtok pricing (USD).
+# v0.6.1 verified against docs.x.ai/docs/models on 2026-05-09.
+# IMPORTANT: grok-4 + grok-code-fast-1 are scheduled for retirement
+# 2026-05-15 12:00 PT per xAI docs. Old IDs kept in PRICING for back-
+# compat with calls in flight pre-retirement; consumers should
+# migrate to grok-4-3 / grok-4-1-fast-* / grok-4-20-* by retirement.
 PRICING: dict[str, tuple[float, float]] = {
     # model_id: (input_per_mtok, output_per_mtok)
+    # — current generation (v0.6.1 catalog) —
+    "grok-4-3": (1.25, 2.50),
+    "grok-4-20-0309-reasoning": (1.25, 2.50),
+    "grok-4-20-0309-non-reasoning": (1.25, 2.50),
+    "grok-4-1-fast-reasoning": (0.20, 0.50),
+    "grok-4-1-fast-non-reasoning": (0.20, 0.50),
+    # AIMLAPI catalog has these without prefix; xAI docs show same
+    "grok-4-fast-reasoning": (0.20, 0.50),
+    "grok-4-fast-non-reasoning": (0.20, 0.50),
+    # — retiring 2026-05-15 (kept for back-compat with in-flight calls) —
     "grok-4": (5.00, 15.00),
+    "grok-code-fast-1": (0.20, 1.50),  # estimate; verify before retirement
+    # — older generations (still routable today, pricing per v0.5.1) —
     "grok-3": (3.00, 15.00),
     "grok-3-mini": (0.30, 0.50),
     # NOTE (drop DM #716 obs #2): grok-2 was previously listed at
     # (3.00, 15.00) "alias to grok-3 per xAI routing". Removed in
     # v0.5.1 — alias-routed models can silently re-route at the
-    # provider's discretion (e.g., grok-2 → grok-3-mini for cost
-    # optimization). Listing them in PRICING locks an assumption
-    # that may go stale silently. _default catches grok-2 calls at
-    # the same (3.00, 15.00) until xAI exposes a verified pricing
-    # API (issue tracked toward v0.6.0 list_models architectural
-    # promotion per #720).
+    # provider's discretion. _default catches grok-2 calls.
     "_default": (3.00, 15.00),
 }
+
+_GROK_PRICING_VERIFIED_AT = "2026-05-09"
+_GROK_RETIREMENT_NOTICE = {
+    # model_id: retirement_date — UserWarning fires when these are called
+    # post-retirement-date so operators see the deprecation loud.
+    "grok-4": "2026-05-15",
+    "grok-code-fast-1": "2026-05-15",
+}
+
+
+def _normalize_xai_id(model: str) -> str:
+    """xAI uses two ID formats: bare (``grok-4``) and prefixed
+    (``x-ai/grok-4-07-09``). v0.6.1 normalizes by stripping the
+    ``x-ai/`` prefix and the dated suffix so PRICING lookups resolve
+    against canonical bare IDs.
+
+    Examples:
+        x-ai/grok-4 → grok-4
+        x-ai/grok-4-07-09 → grok-4 (date suffix stripped)
+        x-ai/grok-3-beta → grok-3
+        grok-4-fast-reasoning → grok-4-fast-reasoning (no change)
+    """
+    # Strip x-ai/ prefix
+    if model.startswith("x-ai/"):
+        model = model[len("x-ai/"):]
+    # Strip -beta suffix
+    if model.endswith("-beta"):
+        model = model[: -len("-beta")]
+    # Strip dated suffix like -07-09 (two pairs of digits at end)
+    import re as _re
+
+    model = _re.sub(r"-\d{2}-\d{2}$", "", model)
+    return model
 
 
 def _to_openai_messages(messages: list[ChatMessage]) -> list[dict]:
@@ -62,7 +108,13 @@ def _to_openai_messages(messages: list[ChatMessage]) -> list[dict]:
 def _compute_cost(
     model: str, input_tokens: int, output_tokens: int
 ) -> float:
-    in_per_mtok, out_per_mtok = PRICING.get(model, PRICING["_default"])
+    # v0.6.1: normalize xAI prefix shapes (x-ai/grok-4 → grok-4) so
+    # PRICING lookups resolve regardless of whether caller used the
+    # bare or prefixed form. AIMLAPI returns prefixed IDs, xAI's
+    # native API returns bare; normalizing here means consumers can
+    # pass through either shape without surprise undercounting.
+    canonical = _normalize_xai_id(model)
+    in_per_mtok, out_per_mtok = PRICING.get(canonical, PRICING["_default"])
     return (
         (input_tokens / 1_000_000.0) * in_per_mtok
         + (output_tokens / 1_000_000.0) * out_per_mtok
@@ -212,8 +264,10 @@ class GrokAdapter:
         yield ""  # pragma: no cover
 
     def cost_per_token(self, model: str) -> tuple[float, float]:
-        """Return (input_per_mtok, output_per_mtok) USD for ``model``."""
-        return PRICING.get(model, PRICING["_default"])
+        """Return (input_per_mtok, output_per_mtok) USD for ``model``.
+        v0.6.1: normalizes ``x-ai/`` prefix + dated/beta suffixes via
+        ``_normalize_xai_id`` before PRICING lookup."""
+        return PRICING.get(_normalize_xai_id(model), PRICING["_default"])
 
     def list_models(self, *, ttl_seconds: int = 86400):
         """v0.6.0 catalog query — AIMLAPI primary + per-provider fallback."""

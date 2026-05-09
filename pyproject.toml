@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.6.0"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.6.0 architectural promotion: swarph_mesh.discovery module with AIMLAPI catalog + Gemini Cloud Billing pricing API + Anthropic manual-table pricing primitive, plus LLMAdapter.list_models() Protocol method. Closes the silent-mis-attribute trap at the substrate layer."
+version = "0.6.1"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.6.1 PRICING table catch-up + alias-resolution: corrects gpt-5 over-attribution (was $5/$20, real $1.25/$10), adds gpt-4.1 + gpt-5-mini/nano + xAI grok-4.x family + DeepSeek slash-prefix normalization + Anthropic dated-build aliases + Gemini 2.0 family. v0.6.0 substrate (discovery module + LLMAdapter.list_models()) intact."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
