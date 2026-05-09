@@ -11,7 +11,7 @@ against the Protocol without coupling to a specific provider.
 
 from __future__ import annotations
 
-from typing import AsyncIterator, Optional, Protocol, runtime_checkable
+from typing import Any, AsyncIterator, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -40,7 +40,7 @@ class LLMResponse(BaseModel):
     """
 
     text: str = Field(..., description="Final response text from the LLM.")
-    parsed: Optional[dict] = Field(
+    parsed: Optional[dict[str, Any]] = Field(
         None,
         description="Pydantic-parsed response when json_schema was provided.",
     )
@@ -56,7 +56,7 @@ class LLMResponse(BaseModel):
         None,
         description="Adapter error category, if the call failed gracefully.",
     )
-    raw_response: Optional[dict] = Field(
+    raw_response: Optional[dict[str, Any]] = Field(
         None,
         description="Provider-specific debug payload — stripped before TSDB write.",
     )
@@ -80,7 +80,7 @@ class LLMAdapter(Protocol):
         messages: list[ChatMessage],
         model: str,
         system_prompt: Optional[str] = None,
-        json_schema: Optional[dict] = None,
+        json_schema: Optional[dict[str, Any]] = None,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> LLMResponse:
@@ -100,7 +100,7 @@ class LLMAdapter(Protocol):
         """Return ``(input_per_mtok, output_per_mtok)`` in USD."""
         ...
 
-    def list_models(self, *, ttl_seconds: int = 86400) -> list:
+    def list_models(self, *, ttl_seconds: int = 86400) -> list[Any]:
         """Return :class:`swarph_mesh.discovery.ModelInfo` records for
         this provider's catalog. v0.6.0 architectural promotion per
         drop DM #720 + commander direction 2026-05-09.

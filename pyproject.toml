@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.6.2"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem. v0.6.2 OpenAI full-pricing catch-up + drop's #745 carry-forwards: corrects o3 4x over-attribution (was 10/40, real 2/8), adds gpt-5.1/5.4/5.5 families + gpt-5-pro + o1-pro + o3-pro from authoritative openai.com/api/pricing source, centralizes normalizers + adds shared retirement registry pattern."
+version = "0.7.0"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.0 ships the foundations layer: GitHub Actions CI (pytest matrix + mypy --strict on the public Protocol surface + ruff), PEP 561 py.typed marker (third-party type-checkers see swarph-mesh's types), protocol-stability snapshot tests guarding against silent contract drift in LLMAdapter / discovery public API. Establishes graph-protocol versioning policy."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -47,7 +47,8 @@ Plugin = "https://github.com/darw007d/swarph-meshlm"
 Spec = "https://github.com/darw007d/hedge-fund-mcp/blob/main/research/swarph_cli/PLAN.md"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
+typecheck = ["mypy>=1.10", "types-setuptools"]
 
 # NOTE: this repo is the substrate Python package only — pure library.
 # The `swarph` CLI binary lives in `darw007d/swarph-cli`; the Simon
@@ -57,6 +58,46 @@ dev = ["pytest>=7.0"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# v0.7.0 — PEP 561 marker so third-party type-checkers see our types.
+[tool.setuptools.package-data]
+swarph_mesh = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+
+
+# v0.7.0 — mypy strict gate on the public Protocol surface.
+# Third-party node-implementer-facing modules MUST type-check
+# under --strict. Adapter implementations and tests can relax (they
+# call into vendor SDKs whose stubs vary by SDK version).
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_reexport = true
+
+# Adapter implementations + tests skip strict typing for now; the gate
+# is the public contract surface. This list grows as we tighten over
+# time (DEPRECATIONS.md anchored).
+[[tool.mypy.overrides]]
+module = "swarph_mesh.adapters.*"
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+
+# Vendor SDKs whose type stubs aren't published or are inconsistent.
+[[tool.mypy.overrides]]
+module = "openai.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "langchain_core.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "langgraph_genai_bridge.*"
+ignore_missing_imports = true
