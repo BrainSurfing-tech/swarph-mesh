@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.7.1"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.1 ships the security policy: SECURITY.md with explicit in-scope vulnerability classes (credential leakage, privilege boundary bypass, cost over/under-attribution, ratification bypass, protocol contract violation, catalog poisoning, DM contagion), reporting channels, response timeline, hardening commitments per release. Federation forward-compat noted."
+version = "0.7.2"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.2 ships the versioning + deprecation policy: CHANGELOG.md (full release history) + DEPRECATIONS.md (3-tier contract surface, what counts as breaking, deprecation cycle requirements, mypy --strict ratchet schedule, hardening commitment tracker). Resolves SECURITY.md v0.7.1's 8 forward-references."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

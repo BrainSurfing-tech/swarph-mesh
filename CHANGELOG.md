@@ -1,0 +1,204 @@
+# Changelog
+
+All notable changes to `swarph-mesh` are documented in this file.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) per the policy in [DEPRECATIONS.md](./DEPRECATIONS.md).
+
+`swarph-mesh` is the graph-protocol substrate for the swarph-mesh ecosystem — every CLI is a node, the `LLMAdapter` Protocol is the third-party node-implementer contract. Changes to that contract follow strict policy; ordinary feature additions follow ordinary semver.
+
+## [Unreleased]
+
+### Foundations sprint queue (per drop DM #745 + #751 ordering)
+
+- **v0.7.3** — Sphinx auto-docs + GitHub Pages publication
+- **v0.7.4** — Coverage publication (Codecov badge + threshold)
+- **v0.7.5** — Node-implementer guide (`docs/becoming-a-node.md`) + protocol-stability test ratchet (mypy strict expanded one module)
+- **v0.7.6+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation
+
+### Feature track queue (after foundations stable)
+
+- LLM-scraper primitive (subscription-default opt-in per commander direction; cross-check optional)
+- Drift-detection cron (uses `verified_at` metadata across PRICING tables)
+- Cached-input pricing tuple-shape extension (`(input, cached, output)` triples)
+- Retirement-warning runtime hook at adapter dispatch (uses `discovery.is_retired`)
+- gpt-5.3-codex / gpt-5.2-codex pricing (deferred from v0.6.2; needs commander pasting from authoritative OpenAI source)
+
+## [0.7.1] — 2026-05-09
+
+### Added
+
+- **`SECURITY.md`** — security policy with 9 explicit in-scope vulnerability classes mapped to actual contract surface (NOT generic boilerplate):
+  1. Credential leakage (logs, attribution, exception messages, DM contents, PyPI artifacts)
+  2. Privilege boundary bypass (regular → admin keys, subscription → metered exfiltration)
+  3. Cost over-attribution (the gpt-5 5x and o3 5x classes elevated to first-class security concern at enterprise spend)
+  4. Cost under-attribution (audit + quota escape)
+  5. Mesh-gateway authentication bypass (`/peers`, `/messages`, `/tasks/claim`)
+  6. Ratification bypass (`task_claim` for `ratified=false`, `peer_ratifications` mutability)
+  7. Protocol contract violation (`LLMAdapter` / `MeshMessage` / `MeshClient.send` / `discovery` API changes without deprecation window — anchored in [DEPRECATIONS.md](./DEPRECATIONS.md))
+  8. Catalog poisoning (crafted `ModelInfo` records via AIMLAPI or `/v1/models`)
+  9. DM contagion (`lab-claude` vs `lab-ovh` framing-contagion class promoted to security concern; pre-federation cross-mesh status leaks)
+- Reporting channels: `pierresamson@gmail.com` with `[swarph-mesh security]` subject prefix, GitHub Security Advisory (preferred for repo-scoped findings).
+- Response timeline commitments: 48h ack / 5 business days triage / 14d high-critical fix / 30d medium / 90d low.
+- Hardening commitment per minor release (at least one of: secret-guard regex tightening, protocol-stability snapshot expansion, mypy strict module ratchet, privilege-boundary test addition).
+- Federation forward-compat note for v0.8+ mesh-to-mesh work.
+
+### Notes
+
+Pure governance artifact addition. No Protocol changes. No API removals. Backward-compat with v0.7.0.
+
+## [0.7.0] — 2026-05-09
+
+### Added
+
+- **GitHub Actions CI workflow** (`.github/workflows/ci.yml`):
+  - Pytest matrix: Python 3.10 (declared floor) + 3.13 (declared ceiling)
+  - `mypy --strict` gate scoped to `types.py` + `exceptions.py` (ratchets per minor per [DEPRECATIONS.md](./DEPRECATIONS.md))
+  - Ruff lint (F-rule subset, non-blocking initially)
+  - Concurrency cancellation on force-push
+  - `SWARPH_SKIP_NETWORK=1` in CI runners (live AIMLAPI catalog smoke + cost-recon don't hit network from PR runners)
+
+- **PEP 561 type marker** (`src/swarph_mesh/py.typed`):
+  - Empty file packaged via `tool.setuptools.package-data`
+  - Third-party type-checkers (mypy, pyright, etc.) now see swarph-mesh's hints
+  - Was missing pre-v0.7.0 — every external pip-install consumer got `Untyped` annotations from us until they explicitly opted in
+
+- **Protocol-stability snapshot tests** (`tests/test_protocol_contract.py`, 10 tests):
+  - `LLMAdapter` `@runtime_checkable` preservation (third-party `isinstance()` workflow guarantee)
+  - Required class attribute set (`name`, `default_model`)
+  - Frozen method set: `chat` / `stream` / `cost_per_token` / `list_models`
+  - `chat()` signature kwarg-default frozen (`system_prompt=None`, `json_schema=None`, `temperature=0.7`, `max_tokens=None`)
+  - `list_models()` `ttl_seconds=86400` default frozen
+  - `ChatMessage` + `LLMResponse` field-set guarantees
+  - Canonical adapter names `{gemini, deepseek, claude, openai, grok}` reserved + dispatchable
+  - Discovery public API frozen at v0.7.0 baseline
+
+### Changed
+
+- `LLMResponse.parsed` typed as `dict[str, Any]` (was bare `dict`) for `mypy --strict`.
+- `LLMResponse.raw_response` typed as `dict[str, Any]`.
+- `LLMAdapter.chat` `json_schema` typed as `dict[str, Any]`.
+- `LLMAdapter.list_models` return typed as `list[Any]`.
+
+### Fixed
+
+- Test fixture `test_canonical_adapter_names_in_registry_dispatch` was caching fake-key adapters in the singleton registry, silently poisoning live smoke tests later in the same run. Wrapped in `reset_registry()` try/finally. Caught when full pytest run started failing `tests/test_smoke_deepseek` with 401 errors from leftover fake keys. The class is now documented in `feedback_singleton_pollution_across_tests.md` (lab + droplet auto-memory mirrors).
+
+### Notes
+
+Major-style minor signals foundations-layer shift in v0.7.x line. Each subsequent v0.7.x minor adds one foundations item. Backward-compat with v0.6.x: no Protocol changes, no API removals.
+
+## [0.6.2] — 2026-05-09
+
+### Added
+
+- **OpenAI PRICING entries** from authoritative `openai.com/api/pricing` source (commander-pasted 2026-05-09):
+  - gpt-5.1 family: `gpt-5.1`, `gpt-5.1-codex`, `gpt-5.1-codex-mini`
+  - gpt-5.4 family: `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.4-pro`
+  - gpt-5.5 family: `gpt-5.5`, `gpt-5.5-pro`
+  - `gpt-5-pro` (premium tier $15/$120)
+  - `o1-pro` (premium reasoner $150/$600)
+  - `o3-pro` ($20/$80)
+
+- **Centralized normalizers** in `swarph_mesh.discovery` (drop DM #745 obs #1):
+  - `normalize_xai_id`, `normalize_deepseek_id`, `normalize_model_id` (provider-aware dispatcher)
+  - Adapter-local `_normalize_*_id` copies preserved for back-compat
+
+- **Shared retirement registry** (drop DM #745 obs #2):
+  - `_RETIREMENT_REGISTRY` dict keyed by `provider/model_id` → ISO date OR `"deprecated"` sentinel
+  - Public API: `is_retired(provider, model_id, today=None)` + `retirement_date(provider, model_id)`
+  - Initial entries: `grok/grok-4` + `grok/grok-code-fast-1` (2026-05-15); `claude/claude-sonnet-3-7` + `claude/claude-opus-3` (deprecated sentinels)
+
+- Provenance metadata: `_OPENAI_PRICING_VERIFIED_AT = "2026-05-09"` + `_OPENAI_PRICING_SOURCE`.
+
+### Fixed
+
+- **`o3` over-attribution** (CRITICAL): was `(10.00, 40.00)` speculative in v0.6.1; real direct OpenAI pricing is `(2.00, 8.00)`. **5x over-attribution** for any caller using `o3` between v0.5.x and v0.6.1. Same class as the `gpt-5` fix in v0.6.1. Regression test asserts the corrected numbers.
+- `o1-mini` correction: `(3.00, 12.00)` → `(1.10, 4.40)` (matches `o3-mini`/`o4-mini` tier).
+
+### Deferred
+
+- `gpt-5.3-codex` / `gpt-5.2-codex`: not on the standard-tier source page commander pasted; route to `_default` until next verification cycle.
+- Cached-input pricing tuple-shape extension (page exposes `(input, cached, output)` triples; tracked as feature-queue item).
+- Retirement-warning runtime hook at adapter dispatch.
+
+## [0.6.1] — 2026-05-08
+
+### Fixed
+
+- **`gpt-5` over-attribution** (CRITICAL): was `(5.00, 20.00)` speculative in v0.5.x; real direct OpenAI pricing per Helicone is `(1.25, 10.00)`. ~4x over-attribution window for callers using `gpt-5` pre-v0.6.1.
+
+### Added
+
+- 9 carry-forward fixes batched: gpt-4.1 family, gpt-5-mini/nano, claude-opus-4-1 + dated builds, grok-4-fast family, gemini-2.0-flash, alias normalizers, secret-guard regex tightenings, MeshClient response-shape fixes, kind enum, ?to= wire fix.
+- `fetch_xai_cost_buckets()` + `reconcile_xai_cost()` via `management-api.x.ai/v1/billing/teams/{id}/usage` (live smoke verified).
+- `fetch_deepseek_balance()` via `/user/balance` (live smoke verified).
+
+### Notes
+
+PR #14 was auto-closed when its stacked base (PR #13 `feat/v0-6-0-discovery`) was deleted on merge; recovered by opening PR #15 with `base=main` carrying drop's #745 approval forward. Class documented in `feedback_stacked_pr_base_delete.md`.
+
+## [0.6.0] — 2026-05-09
+
+**Architectural promotion: model discovery substrate. BREAKING CHANGE on `LLMAdapter` Protocol.**
+
+### Added
+
+- **`swarph_mesh.discovery` module** with 4 primitives:
+  - **Catalog** backed by [AIMLAPI's public `/models` endpoint](https://docs.aimlapi.com/api-references/service-endpoints/complete-model-list) (~600 entries, no auth, 24h TTL) + per-provider `/v1/models` OpenAI-compat fallback
+  - **Gemini pricing** via Google's [Cloud Billing Catalog API](https://cloud.google.com/billing/docs/reference/rest/v1/services.skus/list) (service `241C-273D-49C8` = Vertex AI)
+  - **Anthropic pricing** via static manual table from `claude.com/pricing` with `verified_at` provenance
+  - **OpenAI cost reconciliation** via `/v1/organization/costs` admin-key gated; live smoke PASSED end-to-end
+- `LLMAdapter.list_models()` Protocol method — **BREAKING CHANGE**: external implementations of `LLMAdapter` from v0.5.x must add this method to satisfy the runtime-checkable Protocol. Each shipped adapter delegates via 3-line lazy-import call.
+- Secret-guard regex tightening: `sk-admin-` named pattern with elevated-privilege-class error message.
+
+### Notes
+
+v0.6.0 not published to PyPI (v0.6.1 supersedes); git tag `v0.6.0` exists for provenance.
+
+## [0.5.1] — 2026-05-08
+
+### Fixed
+
+- `MeshClient.send` response shape mismatch (pydantic ValidationError on success POST despite delivery — DM duplication risk).
+- `MeshClient.fetch` `?to=` wire-shape fix (was using `?to_node=` which the gateway silently ignored).
+
+### Added
+
+- 9 carry-forward fixes: secret-guard regex tightenings (sk-proj-, xai-, deepseek explicit, AIza, mesh-gateway tokens), DEEPSEEK_LEGACY_ENV_PATH override, V4-Pro promo verify-after sentinel, claude.py once-per-instance silent-kwargs warnings, CLAUDE_BIN docstring, grok-2 PRICING removal, OpenAI `_default` → gpt-4o-mini under-bill-on-uncertainty.
+- `kind=Literal[...]` enum on `MeshClient.send` for fail-fast.
+
+## [0.5.0] — 2026-05-08
+
+### Added
+
+- **Phase 4 #4 + #5**: `OpenAIAdapter` + `GrokAdapter` (native AsyncOpenAI from day one per drop's #7 forward-direction). xAI uses OpenAI-protocol-compatible API at `https://api.x.ai/v1`. Reasoning preservation `[reasoning]` shape consistent across all four reasoner-capable adapters.
+
+## [0.4.0] — 2026-05-08
+
+### Added
+
+- **Phase 4 #3**: `ClaudeAdapter` subscription path via `claude -p` subprocess. Reads `~/.claude/.credentials.json`. Billing-leak prevention via `swarph_shared.scrub_env_for_subprocess` strips ANTHROPIC_API_KEY before invoking. `cost_usd=0.0` for subscription (honest flat-rate); metered-equivalent in `raw_response["api_metered_cost_usd"]` for auditors.
+
+## [0.3.0] — 2026-05-08
+
+### Added
+
+- **Phase 4 #2**: `DeepSeekAdapter` (OpenAI-protocol-compatible client for V4-Flash / V4-Pro / V3 aliases). Preserves reasoning content as `[reasoning]` preamble for portability.
+
+## [0.2.0] — 2026-05-08
+
+### Added
+
+- **Phase 3**: `MeshClient` async wrapper around mesh-gateway HTTP API + recipient validation via `swarph_shared.validate_node_name` + best-effort credential leak guard.
+
+## [0.1.0] — 2026-05-08
+
+### Added
+
+- **Phase 1**: First substrate release. `LLMAdapter` Protocol + `ChatMessage` + `LLMResponse` + `SwarphCall` public surface (caller-validated, hook-wired entry-point) + `GeminiAdapter` (wraps `langgraph-genai-bridge`) + JSON-mode harness + `FileAttributionWriter`.
+
+## [0.0.1] — 2026-05-08
+
+### Added
+
+- Typed substrate scaffold: Protocol + dataclasses + exceptions.
