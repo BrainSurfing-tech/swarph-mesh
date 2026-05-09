@@ -330,6 +330,108 @@ def get_model_info(
 
 
 # ===========================================================================
+# Centralized model-id normalizers (drop DM #745 obs #1, v0.6.2)
+# ===========================================================================
+#
+# Per-adapter normalizers (``_normalize_xai_id``, ``_normalize_deepseek_id``)
+# remain in their adapter modules for backward-compat callers. v0.6.2
+# centralizes the SAME logic here so future telemetry / shared tooling
+# (e.g., a future drift-detection cron) can normalize across providers
+# without per-adapter import dance.
+
+import re as _re
+
+
+def normalize_xai_id(model_id: str) -> str:
+    """Strip xAI prefix (``x-ai/``) + ``-beta`` + dated build suffixes
+    (``-DD-DD``). See ``swarph_mesh.adapters.grok._normalize_xai_id``
+    for adapter-local copy with the same semantics."""
+    if model_id.startswith("x-ai/"):
+        model_id = model_id[len("x-ai/"):]
+    if model_id.endswith("-beta"):
+        model_id = model_id[: -len("-beta")]
+    model_id = _re.sub(r"-\d{2}-\d{2}$", "", model_id)
+    return model_id
+
+
+def normalize_deepseek_id(model_id: str) -> str:
+    """Strip DeepSeek prefix (``deepseek/``) + version suffixes
+    (``-v3.1``, ``-v3.2-terminus``). See
+    ``swarph_mesh.adapters.deepseek._normalize_deepseek_id`` for
+    adapter-local copy."""
+    if model_id.startswith("deepseek/"):
+        model_id = model_id[len("deepseek/"):]
+    model_id = _re.sub(r"-v\d+\.\d+(-\w+)*$", "", model_id)
+    return model_id
+
+
+def normalize_model_id(provider: str, model_id: str) -> str:
+    """Provider-aware normalizer. Dispatches to the right
+    per-provider helper. Provider names match the adapter ``name``
+    field (``"openai"``, ``"grok"``, etc.)."""
+    if provider in ("xai", "grok"):
+        return normalize_xai_id(model_id)
+    if provider == "deepseek":
+        return normalize_deepseek_id(model_id)
+    # Other providers: pass through (no known prefix/suffix to strip)
+    return model_id
+
+
+# ===========================================================================
+# Shared retirement registry (drop DM #745 obs #2, v0.6.2)
+# ===========================================================================
+#
+# Per-adapter retirement constants (``_GROK_RETIREMENT_NOTICE``) stay
+# in their modules for backward-compat. v0.6.2 promotes a SHARED
+# registry pattern so callers can query "is this model retired today
+# across any provider?" without per-adapter import dance.
+
+import datetime as _dt
+
+
+# Static cross-provider retirement notice. Each entry maps a fully-
+# qualified ``provider/model_id`` key to the date past which the
+# model is no longer routable. Update by editing this dict + bumping
+# ``_RETIREMENT_REGISTRY_VERIFIED_AT``.
+_RETIREMENT_REGISTRY_VERIFIED_AT = "2026-05-09"
+
+_RETIREMENT_REGISTRY: dict[str, str] = {
+    # provider/model_id: retirement_date (ISO YYYY-MM-DD)
+    "grok/grok-4": "2026-05-15",
+    "grok/grok-code-fast-1": "2026-05-15",
+    # Anthropic deprecated models — flagged by Anthropic but still
+    # routable (metered API serves them); listing here surfaces the
+    # status to drift-detection. Retirement date not specified by
+    # Anthropic; using "deprecated" as a sentinel.
+    "claude/claude-sonnet-3-7": "deprecated",
+    "claude/claude-opus-3": "deprecated",
+}
+
+
+def is_retired(provider: str, model_id: str, *, today: Optional[_dt.date] = None) -> bool:
+    """Return True if the model is past its retirement date as of
+    ``today`` (default: actual today UTC). Returns False for
+    unregistered models (not retired) and for ``deprecated`` sentinel
+    entries (still routable, just deprecated)."""
+    key = f"{provider}/{model_id}"
+    retirement = _RETIREMENT_REGISTRY.get(key)
+    if retirement is None or retirement == "deprecated":
+        return False
+    try:
+        retirement_date = _dt.date.fromisoformat(retirement)
+    except ValueError:
+        return False
+    today = today or _dt.datetime.now(_dt.UTC).date()
+    return today >= retirement_date
+
+
+def retirement_date(provider: str, model_id: str) -> Optional[str]:
+    """Return the retirement-date string for a provider/model_id, OR
+    None if not in the registry."""
+    return _RETIREMENT_REGISTRY.get(f"{provider}/{model_id}")
+
+
+# ===========================================================================
 # Pricing discovery — heterogeneous per-provider sources (v0.6.0)
 # ===========================================================================
 #

@@ -30,48 +30,65 @@ from swarph_mesh.types import ChatMessage, LLMResponse
 # Per-Mtok pricing (USD), 2026-05-08 baseline.
 # Source: https://openai.com/api/pricing/
 # Per-Mtok pricing (USD).
-# v0.6.1 verified against helicone.ai/llm-cost on 2026-05-09. Direct
-# OpenAI provider pricing only (NOT AIMLAPI resale tier, which marks
-# up). Update path: re-query Helicone or openai.com/api/pricing and
-# bump _OPENAI_PRICING_VERIFIED_AT.
+# v0.6.2 verified against the OpenAI public pricing page source
+# (commander-pasted 2026-05-09). Direct OpenAI provider pricing only.
+# Source format on the page: ``[model, input, cached_input, output]``;
+# we currently track only (input, output) — cached pricing is a v0.7
+# tuple-shape extension.
+#
+# Two correction-class fixes folded in:
+# - gpt-5: stays at v0.6.1 (1.25, 10.00) — verified canonical.
+# - o3: v0.6.1 had (10.00, 40.00) speculative; real direct OpenAI
+#   pricing is (2.00, 8.00). 5x OVER-ATTRIBUTION CORRECTION. Same
+#   class as the gpt-5 fix from v0.6.1.
 PRICING: dict[str, tuple[float, float]] = {
     # model_id: (input_per_mtok, output_per_mtok)
     "gpt-4o": (2.50, 10.00),
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4-turbo": (10.00, 30.00),
-    # gpt-4.1 family (NEW v0.6.1)
+    # gpt-4.1 family
     "gpt-4.1": (2.00, 8.00),
     "gpt-4.1-mini": (0.40, 1.60),
     "gpt-4.1-nano": (0.10, 0.40),
-    # gpt-5 family — v0.6.1 CORRECTION: v0.5.1 had (5.00, 20.00)
-    # speculative; real direct OpenAI pricing is (1.25, 10.00). Anyone
-    # who called gpt-5 through swarph-mesh between 2026-05-08 and
-    # 2026-05-09 had cost_usd over-attributed by ~4x.
+    # gpt-5 family
     "gpt-5": (1.25, 10.00),
     "gpt-5-mini": (0.25, 2.00),
     "gpt-5-nano": (0.05, 0.40),
+    "gpt-5-pro": (15.00, 120.00),  # NEW v0.6.2 (premium tier)
+    # gpt-5.1 family (NEW v0.6.2)
+    "gpt-5.1": (1.25, 10.00),
+    "gpt-5.1-codex": (1.25, 10.00),
+    "gpt-5.1-codex-mini": (0.25, 2.00),
+    # gpt-5.2 family
     "gpt-5.2": (1.75, 14.00),
     "gpt-5.2-pro": (21.00, 168.00),
-    # gpt-5.1, 5.3, 5.4, 5.5, 5-pro: pricing not yet published on
-    # Helicone's tracker as of 2026-05-09; routed to _default until
-    # commander pastes authoritative OpenAI direct pricing for them.
-    # AIMLAPI's pricing page has third-party resale numbers but those
-    # are marked-up and not safe for our PRICING table.
+    # gpt-5.4 family (NEW v0.6.2)
+    "gpt-5.4": (2.50, 15.00),
+    "gpt-5.4-mini": (0.75, 4.50),
+    "gpt-5.4-nano": (0.20, 1.25),
+    "gpt-5.4-pro": (30.00, 180.00),
+    # gpt-5.5 family (NEW v0.6.2 — current flagship)
+    "gpt-5.5": (5.00, 30.00),
+    "gpt-5.5-pro": (30.00, 180.00),
+    # o-series — v0.6.2 CORRECTION: o3 was (10.00, 40.00) speculative;
+    # real direct OpenAI pricing is (2.00, 8.00). 5x over-attribution
+    # window from v0.5.x through v0.6.1.
     "o1": (15.00, 60.00),
-    "o1-mini": (3.00, 12.00),
-    "o3": (10.00, 40.00),
+    "o1-mini": (1.10, 4.40),  # v0.6.2 verified — was (3.00, 12.00) in v0.6.1
+    "o1-pro": (150.00, 600.00),  # NEW v0.6.2 (premium reasoner tier)
+    "o3": (2.00, 8.00),  # CORRECTION: was (10.00, 40.00)
+    "o3-pro": (20.00, 80.00),  # NEW v0.6.2
     "o3-mini": (1.10, 4.40),
     "o4-mini": (1.10, 4.40),
-    # _default tightening (drop DM #716 obs #3): under-bill-on-uncertainty
-    # preference per token-spend memory. Lean toward gpt-4o-mini
-    # (0.15/0.60) as the conservative undercount default. New gpt-5.x
-    # variants without published direct pricing route here, which
-    # under-attributes rather than over-attributes — the right side of
-    # the trade for unknown models.
+    # gpt-5.3-codex / 5.2-codex: not on the standard-tier pricing page
+    # commander shared. Route to _default until they appear in a
+    # subsequent verification cycle.
+    # _default unchanged from v0.5.1: under-bill-on-uncertainty.
     "_default": (0.15, 0.60),
 }
 
 _OPENAI_PRICING_VERIFIED_AT = "2026-05-09"
+_OPENAI_PRICING_SOURCE = "openai.com/api/pricing (commander-pasted 2026-05-09)"
 
 
 def _to_openai_messages(messages: list[ChatMessage]) -> list[dict]:
