@@ -90,12 +90,39 @@ def _to_openai_messages(messages: list[ChatMessage]) -> list[dict]:
     return [{"role": m.role, "content": m.content} for m in messages]
 
 
+def _normalize_deepseek_id(model: str) -> str:
+    """v0.6.1: DeepSeek IDs come in two shapes — bare
+    (``deepseek-chat``) and prefixed (``deepseek/deepseek-chat-v3.1``).
+    AIMLAPI uses prefix; DeepSeek's own API uses bare. We strip the
+    ``deepseek/`` prefix and the version suffix for PRICING lookup so
+    both shapes resolve to the same canonical entry.
+
+    Examples:
+        deepseek/deepseek-chat-v3.1 → deepseek-chat
+        deepseek/deepseek-reasoner-v3.1-terminus → deepseek-reasoner
+        deepseek/deepseek-v3.2-speciale → deepseek-v3 → _default fallback
+        deepseek-v4-flash → deepseek-v4-flash (no change)
+    """
+    if model.startswith("deepseek/"):
+        model = model[len("deepseek/"):]
+    # Strip version suffix patterns: -v3.1, -v3.1-terminus, -v3.2-exp,
+    # -v3.2-speciale, etc. Anything after -v<digits>.<digits>.
+    import re as _re
+
+    model = _re.sub(r"-v\d+\.\d+(-\w+)*$", "", model)
+    # Strip non-thinking / non-reasoner / etc. capability suffixes
+    # so deepseek-non-thinking → deepseek
+    return model
+
+
 def _compute_cost(
     model: str, input_tokens: int, output_tokens: int
 ) -> float:
     """Per-Mtok cost using ``PRICING``. DeepSeek doesn't have Flex
-    tier — pricing is flat per model."""
-    in_per_mtok, out_per_mtok = PRICING.get(model, PRICING["_default"])
+    tier — pricing is flat per model. v0.6.1 normalizes prefix shapes
+    via ``_normalize_deepseek_id``."""
+    canonical = _normalize_deepseek_id(model)
+    in_per_mtok, out_per_mtok = PRICING.get(canonical, PRICING["_default"])
     return (
         (input_tokens / 1_000_000.0) * in_per_mtok
         + (output_tokens / 1_000_000.0) * out_per_mtok
@@ -254,8 +281,10 @@ class DeepSeekAdapter:
         yield ""  # pragma: no cover — keeps AsyncIterator shape
 
     def cost_per_token(self, model: str) -> tuple[float, float]:
-        """Return (input_per_mtok, output_per_mtok) USD for ``model``."""
-        return PRICING.get(model, PRICING["_default"])
+        """Return (input_per_mtok, output_per_mtok) USD for ``model``.
+        v0.6.1: normalizes ``deepseek/`` prefix + version suffixes via
+        ``_normalize_deepseek_id`` before PRICING lookup."""
+        return PRICING.get(_normalize_deepseek_id(model), PRICING["_default"])
 
     def list_models(self, *, ttl_seconds: int = 86400):
         """v0.6.0 catalog query — AIMLAPI primary + per-provider fallback."""

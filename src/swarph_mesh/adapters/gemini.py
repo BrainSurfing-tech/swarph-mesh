@@ -30,17 +30,29 @@ from swarph_mesh.exceptions import AdapterError
 from swarph_mesh.types import ChatMessage, LLMResponse
 
 
-# Gemini per-Mtok pricing (USD), 2026-04-29 baseline.
-# Flex tier applies a 50% rebate after base computation.
+# Gemini per-Mtok pricing (USD).
+# v0.6.1 catch-up: extended with 2.0 family + dated builds. Flex tier
+# applies a 50% rebate after base computation. Authoritative source
+# for live pricing is Google's Cloud Billing Catalog API
+# (``swarph_mesh.discovery.fetch_gemini_pricing``), which exposes
+# tiered rates including the >128K context multiplier; this static
+# table is the fast-path fallback for cost computation when the
+# Cloud Billing API isn't configured.
 PRICING: dict[str, tuple[float, float]] = {
     # model_id: (input_per_mtok, output_per_mtok)
+    # — 2.5 family —
     "gemini-2.5-flash": (0.075, 0.30),
     "gemini-2.5-flash-lite": (0.019, 0.075),
     "gemini-2.5-pro": (1.25, 5.00),
     "gemini-2.5-pro-preview": (1.25, 5.00),
+    # — 2.0 family (NEW v0.6.1) —
+    "gemini-2.0-flash": (0.10, 0.40),  # base rate; verify-after sentinel needed
+    "gemini-2.0-flash-001": (0.10, 0.40),
     # Default fallback used when an unknown model id is requested
     "_default": (0.075, 0.30),
 }
+
+_GEMINI_PRICING_VERIFIED_AT = "2026-05-09"
 
 
 def _to_langchain_messages(messages: list[ChatMessage]) -> list:

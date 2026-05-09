@@ -16,7 +16,22 @@ All three sit on top of [`swarph-shared`](https://github.com/darw007d/swarph-sha
 
 ## Status
 
-**v0.6.0 — architectural promotion: model discovery substrate.** All five adapters from v0.5.x + v0.5.1 sweep batch + new `swarph_mesh.discovery` module (AIMLAPI primary + per-provider fallback) and `LLMAdapter.list_models()` Protocol method per drop DM #720 and commander direction.
+**v0.6.1 — PRICING table catch-up + alias resolution.** Patches v0.6.0's discovery substrate with corrected pricing for ~20 models surfaced by the AIMLAPI catalog diff:
+
+- **Critical fix:** `gpt-5` was at `(5.00, 20.00)` speculative in v0.5.x; real direct OpenAI pricing is `(1.25, 10.00)` — anyone calling `gpt-5` between v0.5.x and v0.6.1 had `cost_usd` over-attributed by ~4x.
+- New OpenAI entries: `gpt-4.1` family (4.1 / 4.1-mini / 4.1-nano), `gpt-5-mini`, `gpt-5-nano`, `gpt-5.2`, `gpt-5.2-pro`.
+- New Anthropic entries: `claude-opus-4-1` (premium $15/$75 tier), `claude-sonnet-4-5`, `claude-sonnet-4`, `claude-haiku-3-5`, `claude-haiku-3` + dated-build aliases (`claude-opus-4-5-20251101`, etc.).
+- New xAI entries: `grok-4-3`, `grok-4-20-*`, `grok-4-1-fast-*`, `grok-4-fast-*` (current generation per xAI docs). **`grok-4` + `grok-code-fast-1` retire 2026-05-15** per xAI; v0.6.1 documents this in `_GROK_RETIREMENT_NOTICE`.
+- New xAI / DeepSeek alias normalizers: `_normalize_xai_id` strips `x-ai/` prefix + `-beta` + dated suffixes; `_normalize_deepseek_id` strips `deepseek/` prefix + version suffixes. AIMLAPI's prefixed catalog IDs now resolve to PRICING entries instead of falling through to `_default`.
+- New Gemini entries: `gemini-2.0-flash`, `gemini-2.0-flash-001`.
+- `_OPENAI_PRICING_VERIFIED_AT` / `_GROK_PRICING_VERIFIED_AT` / `_GEMINI_PRICING_VERIFIED_AT` metadata added for future drift detection (drop DM #720 direction).
+
+**v0.6.0 — architectural promotion: model discovery substrate.** Four primitives:
+- Catalog (AIMLAPI primary + per-provider fallback)
+- Gemini pricing (Cloud Billing Catalog API)
+- Anthropic pricing (manual table from claude.com/pricing with `verified_at` provenance)
+- OpenAI cost reconciliation (admin-key gated `/v1/organization/costs`)
+- `LLMAdapter.list_models()` Protocol method (breaking change → v0.6.0 major-version bump)
 
 Public surface:
 
@@ -37,7 +52,7 @@ Public surface:
 - Attribution: `FileAttributionWriter` default; `set_default_writer()` for production TSDB consumers
 - `MeshClient` (v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in `lab_loop_drain.py` / `mesh_inbox_watcher.py` / `science_claude_inbox_drain.py`
 
-Tests: **217+ passing** (214 offline + live gates: 1 claude subscription + 1 deepseek + 2 mesh + 1 gemini + 1 openai + 1 grok + 3 discovery against live AIMLAPI; live tests gated on env/creds or `SWARPH_SKIP_NETWORK=1`).
+Tests: **253+ passing** (250 offline + live gates: 1 claude subscription + 1 deepseek + 2 mesh + 1 gemini + 1 openai + 1 grok + 3 discovery against live AIMLAPI; live tests gated on env/creds or `SWARPH_SKIP_NETWORK=1`).
 
 ```python
 from swarph_mesh import SwarphCall, ChatMessage

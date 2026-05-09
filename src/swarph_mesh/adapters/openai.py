@@ -29,33 +29,49 @@ from swarph_mesh.types import ChatMessage, LLMResponse
 
 # Per-Mtok pricing (USD), 2026-05-08 baseline.
 # Source: https://openai.com/api/pricing/
+# Per-Mtok pricing (USD).
+# v0.6.1 verified against helicone.ai/llm-cost on 2026-05-09. Direct
+# OpenAI provider pricing only (NOT AIMLAPI resale tier, which marks
+# up). Update path: re-query Helicone or openai.com/api/pricing and
+# bump _OPENAI_PRICING_VERIFIED_AT.
 PRICING: dict[str, tuple[float, float]] = {
     # model_id: (input_per_mtok, output_per_mtok)
     "gpt-4o": (2.50, 10.00),
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4-turbo": (10.00, 30.00),
+    # gpt-4.1 family (NEW v0.6.1)
+    "gpt-4.1": (2.00, 8.00),
+    "gpt-4.1-mini": (0.40, 1.60),
+    "gpt-4.1-nano": (0.10, 0.40),
+    # gpt-5 family — v0.6.1 CORRECTION: v0.5.1 had (5.00, 20.00)
+    # speculative; real direct OpenAI pricing is (1.25, 10.00). Anyone
+    # who called gpt-5 through swarph-mesh between 2026-05-08 and
+    # 2026-05-09 had cost_usd over-attributed by ~4x.
+    "gpt-5": (1.25, 10.00),
+    "gpt-5-mini": (0.25, 2.00),
+    "gpt-5-nano": (0.05, 0.40),
+    "gpt-5.2": (1.75, 14.00),
+    "gpt-5.2-pro": (21.00, 168.00),
+    # gpt-5.1, 5.3, 5.4, 5.5, 5-pro: pricing not yet published on
+    # Helicone's tracker as of 2026-05-09; routed to _default until
+    # commander pastes authoritative OpenAI direct pricing for them.
+    # AIMLAPI's pricing page has third-party resale numbers but those
+    # are marked-up and not safe for our PRICING table.
     "o1": (15.00, 60.00),
     "o1-mini": (3.00, 12.00),
     "o3": (10.00, 40.00),
     "o3-mini": (1.10, 4.40),
     "o4-mini": (1.10, 4.40),
-    # gpt-5 entry held until verified against OpenAI's pricing page.
-    # Per drop DM #719: gpt-5 + gpt-5.5 are both live as of ~2026-05-01,
-    # so the entry is no longer "rumored/extrapolated" — but the (5.00,
-    # 20.00) numbers were pre-launch extrapolation, which may be
-    # stale-against-real. Verification deferred to v0.5.2 with online
-    # pricing-page check (commander-gated since the verify-then-update
-    # cycle benefits from human eyes on OpenAI's pricing tier table).
-    "gpt-5": (5.00, 20.00),
     # _default tightening (drop DM #716 obs #3): under-bill-on-uncertainty
     # preference per token-spend memory. Lean toward gpt-4o-mini
-    # (0.15/0.60) as the conservative undercount default — if a caller
-    # invokes a typo or unknown model that OpenAI happens to accept,
-    # we under-attribute rather than over-attribute. Auditor signal
-    # "this looks suspiciously cheap" beats "we silently overcharged
-    # this caller's budget for an unknown model".
+    # (0.15/0.60) as the conservative undercount default. New gpt-5.x
+    # variants without published direct pricing route here, which
+    # under-attributes rather than over-attributes — the right side of
+    # the trade for unknown models.
     "_default": (0.15, 0.60),
 }
+
+_OPENAI_PRICING_VERIFIED_AT = "2026-05-09"
 
 
 def _to_openai_messages(messages: list[ChatMessage]) -> list[dict]:
