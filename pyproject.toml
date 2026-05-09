@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.7.2"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.2 ships the versioning + deprecation policy: CHANGELOG.md (full release history) + DEPRECATIONS.md (3-tier contract surface, what counts as breaking, deprecation cycle requirements, mypy --strict ratchet schedule, hardening commitment tracker). Resolves SECURITY.md v0.7.1's 8 forward-references."
+version = "0.7.3"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.3 ships Sphinx auto-docs + GitHub Pages: public contract surface (Tier 1/2/3 from DEPRECATIONS.md) auto-rendered from py.typed package via autodoc/autosummary; CHANGELOG / DEPRECATIONS / SECURITY included via myst-parser; furo theme; CI builds + deploys to gh-pages on every main push."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -49,6 +49,14 @@ Spec = "https://github.com/darw007d/hedge-fund-mcp/blob/main/research/swarph_cli
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21"]
 typecheck = ["mypy>=1.10", "types-setuptools"]
+# v0.7.3 — Sphinx auto-docs + GH Pages. Pinned conservatively; we can
+# loosen as the doc build stabilizes. furo for theme + myst-parser so
+# CHANGELOG.md / DEPRECATIONS.md / SECURITY.md (markdown) include cleanly.
+docs = [
+    "sphinx>=7.0",
+    "furo>=2024.1.29",
+    "myst-parser>=2.0",
+]
 
 # NOTE: this repo is the substrate Python package only — pure library.
 # The `swarph` CLI binary lives in `darw007d/swarph-cli`; the Simon

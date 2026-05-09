@@ -1,13 +1,13 @@
 """SwarphCall — the public surface per PLAN.md §4.
 
-The single entry point most callers use. Wraps:
-  - caller validation (swarph_shared.validate_caller)
-  - adapter resolution (registry lookup)
-  - lifecycle hook dispatch (pre_call / post_call / on_error)
-  - JSON-mode harness when ``json_schema`` is provided
-  - structured ``LLMResponse`` return
+The single entry point most callers use. Wraps caller validation
+(``swarph_shared.validate_caller``), adapter resolution (registry lookup),
+lifecycle hook dispatch (pre_call / post_call / on_error), the JSON-mode
+harness when ``json_schema`` is provided, and the structured
+``LLMResponse`` return.
 
-Usage:
+Example::
+
     from swarph_mesh import SwarphCall, ChatMessage
 
     result = await SwarphCall(
@@ -22,7 +22,7 @@ Usage:
 Caller convention is **enforced** at SwarphCall construction —
 invalid caller strings raise ValueError before any adapter dispatch.
 That's the defense-in-depth pattern from
-`workers/caller_convention.py` / swarph-shared.
+``workers/caller_convention.py`` / swarph-shared.
 """
 
 from __future__ import annotations
