@@ -16,7 +16,7 @@ All three sit on top of [`swarph-shared`](https://github.com/darw007d/swarph-sha
 
 ## Status
 
-**v0.5.0 — Phase 4 complete.** All five adapters shipped: Gemini + DeepSeek + Claude (subscription) + OpenAI + Grok, plus Phase 3 MeshClient. Six PLAN.md §13 falsifiability gates PASSED end-to-end against live infrastructure (real Gemini API + real DeepSeek API + real lab-OVH mesh-gateway + real `claude -p` subscription path + real OpenAI API + real xAI API).
+**v0.6.0 — architectural promotion: model discovery substrate.** All five adapters from v0.5.x + v0.5.1 sweep batch + new `swarph_mesh.discovery` module (AIMLAPI primary + per-provider fallback) and `LLMAdapter.list_models()` Protocol method per drop DM #720 and commander direction.
 
 Public surface:
 
@@ -25,13 +25,19 @@ Public surface:
 - `GeminiAdapter` — wraps `langgraph-genai-bridge` (Flex tier, context caching)
 - `DeepSeekAdapter` (v0.3.0) — OpenAI-protocol-compatible client for V4-Flash / V4-Pro / V3 aliases; preserves reasoning content as `[reasoning]` preamble for portability
 - `ClaudeAdapter` (v0.4.0) — subprocess-based wrapper around `claude -p` for **subscription billing path** (no `ANTHROPIC_API_KEY` needed; reads `~/.claude/.credentials.json`). Reuses `swarph_shared.scrub_env_for_subprocess` to keep billing-relevant env keys out of the subprocess. `cost_usd=0.0` for subscription calls (honest flat-rate); metered-equivalent cost preserved in `raw_response["api_metered_cost_usd"]` for auditors.
-- **`OpenAIAdapter`** (NEW v0.5.0) — native async via `openai.AsyncOpenAI` (no `asyncio.to_thread` threadpool ceiling). Pricing for `gpt-4o` / `gpt-4o-mini` / `o1` / `o3` / `o3-mini` / `o4-mini` / `gpt-5`. o-series `reasoning_content` preserved as `[reasoning]` preamble. `OPENAI_API_KEY` env fallback.
-- **`GrokAdapter`** (NEW v0.5.0) — xAI's OpenAI-compatible API at `https://api.x.ai/v1`, also via `AsyncOpenAI`. Pricing for `grok-4` / `grok-3` / `grok-3-mini` / `grok-2` (alias-routed). Dual env-var resolution: `XAI_API_KEY` (canonical) → `GROK_API_KEY` (alias). Same `[reasoning]` preamble shape as the rest of the adapter family.
+- `OpenAIAdapter` (v0.5.0) — native async via `openai.AsyncOpenAI` (no `asyncio.to_thread` threadpool ceiling). Pricing for `gpt-4o` / `gpt-4o-mini` / `o1` / `o3` / `o3-mini` / `o4-mini` / `gpt-5`. o-series `reasoning_content` preserved as `[reasoning]` preamble. `OPENAI_API_KEY` env fallback.
+- `GrokAdapter` (v0.5.0) — xAI's OpenAI-compatible API at `https://api.x.ai/v1`, also via `AsyncOpenAI`. Pricing for `grok-4` / `grok-3` / `grok-3-mini`. Dual env-var resolution: `XAI_API_KEY` (canonical) → `GROK_API_KEY` (alias). Same `[reasoning]` preamble shape as the rest of the adapter family.
+- **`swarph_mesh.discovery`** (NEW v0.6.0) — three primitives:
+  - **Catalog** backed by [AIMLAPI's public `/models` endpoint](https://docs.aimlapi.com/api-references/service-endpoints/complete-model-list) (no auth, ~600+ entries) with per-provider `/v1/models` fallback when AIMLAPI is unreachable. `list_models(provider=...)`, `is_model_supported(model_id)`, `get_model_info(model_id)`. 24h TTL cache.
+  - **Gemini pricing** via Google's [Cloud Billing Catalog API](https://cloud.google.com/billing/docs/reference/rest/v1/services.skus/list) (service `241C-273D-49C8` = Vertex AI). `fetch_gemini_pricing()` and `pricing_for_gemini_model(hint, direction, tier)`. Auth: `GOOGLE_CLOUD_BILLING_API_KEY` env (separate from `GEMINI_API_KEY` — Cloud Console project key with Billing API scope).
+  - **Anthropic pricing** via static manual table mirrored from claude.com/pricing (Anthropic does not expose programmatic pricing). `pricing_for_anthropic_model(id)` returns full 5-tuple (base input + 5m cache + 1h cache + cache hit + output) per model. Honest about origin via `verified_at` field; update by re-pasting the docs table.
+  - OpenAI/xAI/DeepSeek pricing stays in adapter-local `PRICING` dicts until programmatic sources surface.
+- **`LLMAdapter.list_models()`** (NEW v0.6.0) — Protocol-level method. Each adapter delegates to `discovery.list_models(provider=self.name)`. Breaking change: external implementations of `LLMAdapter` from v0.5.x must implement this method to satisfy the runtime-checkable Protocol.
 - JSON-mode harness — retry-once with [USER]-turn feedback (per swarph-shared invariant)
 - Attribution: `FileAttributionWriter` default; `set_default_writer()` for production TSDB consumers
 - `MeshClient` (v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in `lab_loop_drain.py` / `mesh_inbox_watcher.py` / `science_claude_inbox_drain.py`
 
-Tests: **174+ passing** (169 offline + 1 live claude subscription + 1 live deepseek + 2 live mesh + 1 live gemini + 1 live openai + 1 live grok smoke; live tests gated on respective env/creds).
+Tests: **217+ passing** (214 offline + live gates: 1 claude subscription + 1 deepseek + 2 mesh + 1 gemini + 1 openai + 1 grok + 3 discovery against live AIMLAPI; live tests gated on env/creds or `SWARPH_SKIP_NETWORK=1`).
 
 ```python
 from swarph_mesh import SwarphCall, ChatMessage

@@ -78,6 +78,41 @@ def test_check_no_secret_skips_short_jwt_lookalikes():
     _check_no_secret("eyJ.eyJ.x")  # no raise
 
 
+def test_check_no_secret_catches_openai_admin_key_with_admin_label(monkeypatch):
+    """v0.6.0 — OpenAI admin keys (``sk-admin-...``) match a NAMED pattern
+    that flags the highest-privilege class with explicit error text.
+    Pre-fix the catch-all openai-key pattern matched but understated the
+    privilege boundary.
+
+    Endpoint that mints these: POST /v1/organization/admin_api_keys.
+    Admin keys can create more admin keys, delete keys, and manage
+    organization settings — substantially larger blast radius than
+    regular sk- or sk-proj- keys.
+    """
+    admin_key = "sk-admin-" + "X" * 30
+    with pytest.raises(MeshSecretLeakError, match="ADMIN"):
+        _check_no_secret(admin_key)
+
+
+def test_check_no_secret_distinguishes_admin_from_regular_openai_key():
+    """Admin and regular keys both raise, but the error text differs so
+    operators see the privilege class clearly."""
+    # Regular project key fires "openai api key" (no ADMIN match)
+    proj_key = "sk-proj-" + "X" * 30
+    with pytest.raises(MeshSecretLeakError, match="openai api key"):
+        _check_no_secret(proj_key)
+    # Admin key fires the named ADMIN pattern instead
+    admin_key = "sk-admin-" + "Y" * 30
+    with pytest.raises(MeshSecretLeakError, match="ADMIN"):
+        _check_no_secret(admin_key)
+
+
+def test_check_no_secret_catches_xai_key():
+    """v0.5.1 added xai- pattern; regression test that it still fires."""
+    with pytest.raises(MeshSecretLeakError, match="xai"):
+        _check_no_secret("xai-" + "Z" * 50)
+
+
 # ---------------------------------------------------------------------------
 # list_peers
 # ---------------------------------------------------------------------------

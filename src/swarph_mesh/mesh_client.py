@@ -96,11 +96,18 @@ class MeshSecretLeakError(SwarphMeshError):
 _CRED_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("pypi token", re.compile(r"\bpypi-[A-Za-z0-9_-]{20,}")),
     ("anthropic api key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}")),
+    # OpenAI ADMIN keys (highest privilege class — can create/delete keys,
+    # manage org). Listed FIRST so it matches before the generic openai
+    # pattern, giving the operator a properly scary error message.
+    # Endpoint that mints these: POST /v1/organization/admin_api_keys.
+    ("openai ADMIN key (org-level privilege)", re.compile(r"\bsk-admin-[A-Za-z0-9_-]{20,}")),
     # OpenAI key shapes: legacy ``sk-<48hex>`` + project keys
     # ``sk-proj-<long>`` (newer, longer alphabet incl. ``_-``). Earlier
     # regex ``sk-[A-Za-z0-9]{20,}`` missed sk-proj-... because of the
     # underscore + hyphen in the body. Issue #4 tightening.
-    ("openai api key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}")),
+    # NOTE: ``sk-admin-...`` is matched by the named pattern above so
+    # this catch-all doesn't downgrade an admin key's error severity.
+    ("openai api key", re.compile(r"\bsk-(?!admin-)(?:proj-)?[A-Za-z0-9_-]{20,}")),
     # xAI / Grok key — xai-<long>. Same shape as OpenAI's hyphen-prefix
     # pattern. Added in v0.5.1 alongside the Grok adapter shipped in
     # v0.5.0; would have matched the key the user pasted in chat earlier

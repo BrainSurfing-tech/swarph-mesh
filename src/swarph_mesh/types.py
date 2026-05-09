@@ -99,3 +99,22 @@ class LLMAdapter(Protocol):
     def cost_per_token(self, model: str) -> tuple[float, float]:
         """Return ``(input_per_mtok, output_per_mtok)`` in USD."""
         ...
+
+    def list_models(self, *, ttl_seconds: int = 86400) -> list:
+        """Return :class:`swarph_mesh.discovery.ModelInfo` records for
+        this provider's catalog. v0.6.0 architectural promotion per
+        drop DM #720 + commander direction 2026-05-09.
+
+        Default implementation delegates to ``discovery.list_models``
+        with ``provider=self.name``; AIMLAPI primary, per-provider
+        fallback when AIMLAPI is unreachable. Adapters MAY override to
+        merge their provider's ``/v1/models`` shape directly when
+        AIMLAPI lags behind a fresh release (rare; AIMLAPI's catalog
+        update cadence has been tight).
+
+        Returns ``list[ModelInfo]`` (not ``list[str]``) so callers get
+        ``context_length``, ``max_tokens``, ``aliases``, ``tags``
+        without per-adapter hardcoding. ``ttl_seconds=0`` forces a
+        fresh fetch.
+        """
+        ...

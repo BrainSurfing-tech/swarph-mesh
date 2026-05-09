@@ -375,3 +375,11 @@ class ClaudeAdapter:
         comparing subscription savings.
         """
         return PRICING.get(model, PRICING["_default"])
+
+    def list_models(self, *, ttl_seconds: int = 86400):
+        """v0.6.0 catalog query — AIMLAPI primary + per-provider fallback.
+        Routes to ``provider="claude"`` which maps to AIMLAPI's
+        ``developer="Anthropic"``."""
+        from swarph_mesh.discovery import list_models as _list
+
+        return _list(provider=self.name, ttl_seconds=ttl_seconds)
