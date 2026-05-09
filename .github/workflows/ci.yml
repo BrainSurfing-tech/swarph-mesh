@@ -48,9 +48,31 @@ jobs:
           # (not the installed wheel)
           python -m pip install -e ".[dev]"
 
-      - name: Run pytest
+      - name: Run pytest with coverage
         run: |
-          python -m pytest --tb=short -q
+          # v0.7.4 — coverage publication. pytest-cov measures the src
+          # tree (editable install above puts it on sys.path); XML report
+          # is what Codecov ingests. Branch coverage on so the signal
+          # reflects test-thoroughness, not just line execution.
+          python -m pip install pytest-cov
+          python -m pytest \
+            --cov=swarph_mesh \
+            --cov-branch \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing:skip-covered \
+            --tb=short -q
+
+      - name: Upload coverage to Codecov
+        # Public repo: no token needed. Single matrix arm uploads (3.13)
+        # to keep the signal clean — multiple uploads from the same
+        # commit merge fine but slow the pipeline.
+        if: matrix.python-version == '3.13'
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          fail_ci_if_error: false  # Codecov outage shouldn't block merges
+          verbose: true
 
   typecheck:
     name: mypy --strict (LLMAdapter Protocol surface)

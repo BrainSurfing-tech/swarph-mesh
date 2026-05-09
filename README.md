@@ -1,5 +1,11 @@
 # swarph-mesh
 
+[![PyPI](https://img.shields.io/pypi/v/swarph-mesh.svg)](https://pypi.org/project/swarph-mesh/)
+[![Python](https://img.shields.io/pypi/pyversions/swarph-mesh.svg)](https://pypi.org/project/swarph-mesh/)
+[![Docs](https://img.shields.io/badge/docs-darw007d.github.io-blue)](https://darw007d.github.io/swarph-mesh/)
+[![codecov](https://codecov.io/gh/darw007d/swarph-mesh/graph/badge.svg)](https://codecov.io/gh/darw007d/swarph-mesh)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Model-agnostic Python substrate for the swarph-mesh ecosystem. Pure library, no CLI.
 
 Designed to fill the gap left by existing tools (`aichat`, `mods`, Simon Willison's `llm`, `gemini-cli`, `claude-cli`): none expose mesh-gateway participation, per-caller attribution, structured-output discipline, or the cooperative-protocol patterns the swarph encodes.

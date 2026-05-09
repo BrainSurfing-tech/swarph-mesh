@@ -1,0 +1,91 @@
+# v0.7.4 — Codecov configuration.
+#
+# Coverage policy mirrors the DEPRECATIONS.md tier discipline:
+# * Tier 1 (third-party-implementer-facing) — high coverage threshold,
+#   regressions blocking
+# * Tier 2 (consumer-facing-internal-friendly) — moderate threshold
+# * Tier 3 (lower-stability) — best-effort, threshold informational
+# * Test files / __init__ — ignored; coverage of test code is not
+#   meaningful and __init__ is mostly re-exports
+#
+# Initial thresholds are intentionally permissive — we will tighten
+# them per minor (the same ratchet pattern as mypy --strict in
+# DEPRECATIONS.md) once a real coverage baseline lands.
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...90"
+
+  status:
+    project:
+      default:
+        # Project-wide regression check. Permissive at v0.7.4 baseline;
+        # tighten per minor.
+        target: auto
+        threshold: 1%   # tolerate 1% drop while we ratchet upward
+        if_ci_failed: error
+        informational: false
+        only_pulls: false
+
+    patch:
+      default:
+        # New code in a PR must be covered. Tighter than project-wide
+        # because new uncovered code is the worst kind — old uncovered
+        # code is grandfathered, new uncovered code is fresh debt.
+        target: 70%
+        threshold: 0%
+        if_ci_failed: error
+        informational: false
+        only_pulls: true
+
+# Don't measure coverage for things that can't meaningfully be
+# tested in isolation: tests themselves, the public-export aggregator
+# __init__.py, generated/cache files.
+ignore:
+  - "tests/"
+  - "src/swarph_mesh/__init__.py"
+  - "**/_build/"
+  - "docs/"
+
+# PR comment summarizing coverage delta. Concise — no need for full
+# breakdown when reviewers just need to see "did this PR move the
+# needle, and which way."
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# Component coverage — group by Tier so the dashboard mirrors
+# DEPRECATIONS.md taxonomy. Components are informational at v0.7.4;
+# can promote individual tiers to status checks later.
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+  individual_components:
+    - component_id: tier_1_protocol
+      name: Tier 1 — LLMAdapter Protocol contract
+      paths:
+        - "src/swarph_mesh/types.py"
+        - "src/swarph_mesh/exceptions.py"
+        - "src/swarph_mesh/mesh_client.py"
+        - "src/swarph_mesh/mesh_types.py"
+    - component_id: tier_1_discovery
+      name: Tier 1 — discovery primitives
+      paths:
+        - "src/swarph_mesh/discovery.py"
+    - component_id: tier_2_swarph_call
+      name: Tier 2 — SwarphCall + hooks + attribution
+      paths:
+        - "src/swarph_mesh/swarph_call.py"
+        - "src/swarph_mesh/hooks.py"
+        - "src/swarph_mesh/attribution.py"
+    - component_id: tier_3_adapters
+      name: Tier 3 — adapter implementations
+      paths:
+        - "src/swarph_mesh/adapters/"

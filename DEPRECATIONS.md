@@ -165,7 +165,8 @@ Tracked here:
 | v0.7.1 | secret-guard | (none — governance release; v0.7.4 includes regex audit) |
 | v0.7.2 | governance | DEPRECATIONS.md anchors policy referenced by SECURITY.md |
 | v0.7.3 | doc-surface | Sphinx auto-docs + GH Pages strict-mode build forces autodoc miss = build break, keeping documented contract in lockstep with code |
-| v0.7.4+ | TBD per release | tracked here |
+| v0.7.4 | coverage-surface | Codecov patch coverage gate at 70% — fresh uncovered code blocks PR merge; project regression tolerance 1%; baseline 90% line / 88% branch on 1316 statements |
+| v0.7.5+ | TBD per release | tracked here |
 
 ## How to file a deprecation
 

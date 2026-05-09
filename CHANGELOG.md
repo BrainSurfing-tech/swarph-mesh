@@ -10,10 +10,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Foundations sprint queue (per drop DM #745 + #751 ordering)
 
-- **v0.7.4** — Coverage publication (Codecov badge + threshold)
 - **v0.7.5** — Node-implementer guide (`docs/becoming-a-node.md`) + protocol-stability test ratchet (mypy strict expanded one module)
 - **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per drop DM #761; targets slot between v0.7.5 + v0.7.6
 - **v0.7.6+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation; load-bearing prereq for mesh-as-OS service-worker cross-host dispatch
+
+## [0.7.4] — 2026-05-09
+
+### Added
+
+- **Coverage publication via Codecov** — pytest-cov branch + line coverage measured in CI on the 3.13 matrix arm, uploaded via `codecov/codecov-action@v4`. Public repo (flipped 2026-05-09 by commander auth) means no token required.
+- **`codecov.yml`** — coverage policy mirrors `DEPRECATIONS.md` tier discipline:
+  - Project regression tolerance: 1% drop while we ratchet upward (auto-target)
+  - **Patch coverage gate at 70%** — new code in a PR must be covered; old uncovered code is grandfathered, fresh uncovered code blocks merge
+  - Components grouped by Tier (Tier 1 Protocol / Tier 1 discovery / Tier 2 SwarphCall+hooks+attribution / Tier 3 adapters) so the dashboard mirrors the contract taxonomy
+  - Ignored: tests/, `__init__.py` (re-exports), `_build/`, `docs/`
+- **Coverage badges** in README.md — PyPI version + Python pyversions + docs site link + Codecov + MIT license
+- **`pytest-cov>=4.0`** added to `[project.optional-dependencies] dev`
+
+### Notes
+
+- **Baseline coverage at v0.7.4: 90.0% line / 87.6% branch** across 1316 statements, 330 branches. Per-module: 100% types/exceptions/hooks/mesh_types, 96% mesh_client, 93% gemini/swarph_call, 92% deepseek, 91% json_harness, 88% grok, 87% discovery, 86% openai, 83% claude, 98% attribution.
+- The 5th hardening dimension after v0.7.3 (doc-surface) is now **coverage-surface lockstep** — Codecov patch gate forces fresh code to be tested at PR time, same enforcement-at-merge-time pattern as Sphinx strict-mode autodoc.
+- `fail_ci_if_error: false` on the codecov upload step — Codecov outage shouldn't block merges; the local coverage XML is still authoritative if upload fails.
 
 ## [0.7.3] — 2026-05-09
 
