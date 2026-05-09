@@ -10,10 +10,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Foundations sprint queue (per drop DM #745 + #751 ordering)
 
-- **v0.7.3** — Sphinx auto-docs + GitHub Pages publication
 - **v0.7.4** — Coverage publication (Codecov badge + threshold)
 - **v0.7.5** — Node-implementer guide (`docs/becoming-a-node.md`) + protocol-stability test ratchet (mypy strict expanded one module)
-- **v0.7.6+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation
+- **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per drop DM #761; targets slot between v0.7.5 + v0.7.6
+- **v0.7.6+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation; load-bearing prereq for mesh-as-OS service-worker cross-host dispatch
+
+## [0.7.3] — 2026-05-09
+
+### Added
+
+- **Sphinx auto-docs build** — first browsable contract surface for third-party node implementers:
+  - `docs/conf.py` — autodoc + autosummary + napoleon + intersphinx + viewcode + myst-parser; furo theme; pulls version from package `__init__` so docs / pyproject never drift.
+  - Per-module `docs/api/*.rst` files for the 8 public modules (`types`, `adapters`, `swarph_call`, `mesh_client`, `discovery`, `attribution`, `hooks`, `exceptions`); each rst marks the Tier 1/2/3 stability of the module's surface up front.
+  - `docs/index.md` lands the package, links the four-package ecosystem (swarph-shared / swarph-mesh / swarph-cli / swarph-meshlm), and points at the contract anchors (`SECURITY.md` / `DEPRECATIONS.md` / `CHANGELOG.md`).
+  - `CHANGELOG.md`, `DEPRECATIONS.md`, `SECURITY.md` included via myst-parser `{include}` so the canonical files stay GitHub-rendered + the doc site stays single-source-of-truth.
+- **GitHub Pages deploy** — `.github/workflows/docs.yml`:
+  - On `main` push: build with `SPHINXOPTS=-W --keep-going` (warnings = errors) + deploy via `actions/deploy-pages@v4`.
+  - On PR: build only (no deploy) so reviewers see green-or-red before merge.
+  - Concurrency group prevents overlapping deploys.
+- **`docs` extras in `pyproject.toml`** — `pip install swarph-mesh[docs]` bootstraps `sphinx>=7.0` + `furo` + `myst-parser`.
+
+### Notes
+
+- Strict-mode build catches autodoc misses (missing docstring on a public symbol, broken intersphinx link) so the contract documentation stays in lockstep with the contract.
+- One docstring formatting fix in `src/swarph_mesh/swarph_call.py` (definition-list-followed-by-Usage-block triggered docutils warning under strict mode); rewrote as Google-style napoleon prose + `Example::` block.
+- Fixes a 404 intersphinx inventory reference (`https://www.python-httpx.org/objects.inv` doesn't exist); httpx removed from `intersphinx_mapping`.
+
+## [0.7.2] — 2026-05-09
+
+### Added
+
+- **`CHANGELOG.md`** (Keep-a-Changelog 1.1.0) — full release history v0.0.1 → v0.7.1 with Added/Changed/Fixed/Notes sections per release; CRITICAL fixes called out in version entries (gpt-5 5x + o3 5x over-attribution).
+- **`DEPRECATIONS.md`** — versioning + deprecation policy:
+  - 3-tier contract surface (Tier 1 highest = `LLMAdapter` Protocol + `ChatMessage` + `LLMResponse` + canonical adapter names + `MeshClient.send`/`fetch` + `MeshMessage` + discovery primitives; Tier 2 medium = `SwarphCall` + `AttributionWriter` + `HookSet` + `normalize_*_id` + `_RETIREMENT_REGISTRY` keys; Tier 3 lower = adapter `PRICING` dicts + adapter-local `_normalize` copies + `_ANTHROPIC_PRICING` contents)
+  - Per-tier breaking-change rules (e.g. adding `LLMAdapter` method = BREAKING under runtime-checkable Protocol, adding `MeshMessage` field with default = NON-BREAKING, renaming canonical adapter name = MAJOR-only)
+  - Deprecation cycle: announcement + `DeprecationWarning` + min 1 MINOR cycle + CHANGELOG entry + migration paragraph for Tier 1
+  - Mypy `--strict` module ratchet schedule v0.7.0 → v0.8.0
+  - Hardening commitment tracker (extends `SECURITY.md`)
+  - Closing discipline: "When in doubt, default is YES it's breaking"
+
+### Notes
+
+- Resolves all 8 forward-references from `SECURITY.md` v0.7.1, `tests/test_protocol_contract.py` failure messages, and CI workflow ratchet comment.
+- Pure governance artifact; no code change. Tests: 293 passed + 5 skipped — unchanged.
 
 ### Feature track queue (after foundations stable)
 

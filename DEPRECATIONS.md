@@ -145,7 +145,7 @@ The CI gate (`.github/workflows/ci.yml`) currently runs `mypy --strict` on `type
 | v0.7.0 | `types.py`, `exceptions.py` | ✅ initial |
 | v0.7.1 | (none — security policy release) | ✅ |
 | v0.7.2 | (none — versioning policy release) | ✅ |
-| v0.7.3 | (none — Sphinx docs release) | planned |
+| v0.7.3 | (none — Sphinx docs release; doc surface itself is the hardening) | ✅ |
 | v0.7.4 | `discovery.py` (after type-tightening pass) | planned |
 | v0.7.5 | `__init__.py` + `mesh_client.py` | planned |
 | v0.7.6 | `swarph_call.py` + `attribution.py` + `hooks.py` | planned |
@@ -163,8 +163,9 @@ Tracked here:
 |---|---|---|
 | v0.7.0 | protocol-stability + mypy | Initial 10 snapshot tests + types.py/exceptions.py strict gate |
 | v0.7.1 | secret-guard | (none — governance release; v0.7.4 includes regex audit) |
-| v0.7.2 | (this release) | DEPRECATIONS.md anchors policy referenced by SECURITY.md |
-| v0.7.3+ | TBD per release | tracked here |
+| v0.7.2 | governance | DEPRECATIONS.md anchors policy referenced by SECURITY.md |
+| v0.7.3 | doc-surface | Sphinx auto-docs + GH Pages strict-mode build forces autodoc miss = build break, keeping documented contract in lockstep with code |
+| v0.7.4+ | TBD per release | tracked here |
 
 ## How to file a deprecation
 
