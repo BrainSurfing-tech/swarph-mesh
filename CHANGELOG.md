@@ -10,9 +10,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Foundations sprint queue (per drop DM #745 + #751 ordering)
 
-- **v0.7.5** — Node-implementer guide (`docs/becoming-a-node.md`) + protocol-stability test ratchet (mypy strict expanded one module)
-- **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per drop DM #761; targets slot between v0.7.5 + v0.7.6
-- **v0.7.6+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation; load-bearing prereq for mesh-as-OS service-worker cross-host dispatch
+> **Renumber note (2026-05-21):** the queued node-implementer guide slot shifted v0.7.5 → v0.7.6 (and transport-agnostic mesh → v0.7.7) because v0.7.5 shipped the GeminiCLIAdapter — built, tested, and ready ahead of the guide. Shipped-and-tested takes the lower number; the planned ordering below is otherwise unchanged.
+
+- **v0.7.6** — Node-implementer guide (`docs/becoming-a-node.md`) + protocol-stability test ratchet (mypy strict expanded one module)
+- **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per drop DM #761; targets slot between v0.7.6 + v0.7.7
+- **v0.7.7+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation; load-bearing prereq for mesh-as-OS service-worker cross-host dispatch
+
+## [0.7.5] — 2026-05-21
+
+### Added
+
+- **`GeminiCLIAdapter` — `provider="gemini-cli"`** — subscription-billed Gemini via the `gemini` CLI binary (`gemini -p -o json`), the Google mirror of `ClaudeAdapter`'s `claude -p` path. Reads `~/.gemini/oauth_creds.json` (the CLI's OAuth login) and bills flat-rate through the user's Google subscription — `cost_usd=0.0`, `raw_response["billing_path"]="subscription"`. Metered-equivalent cost preserved in `raw_response["api_metered_cost_usd"]` for subscription-savings auditing.
+  - **Billing-leak prevention** — `GEMINI_API_KEY` / `GOOGLE_API_KEY` are scrubbed from the subprocess env via `swarph_shared.scrub_env_for_subprocess` (explicit denylist + `*_API_KEY` suffix), so a key sitting in the env can't silently flip the CLI to metered billing. Proven: invoking with `GEMINI_API_KEY=LEAK_CANARY` in the env still bills subscription.
+  - **Token accounting** — `_aggregate_tokens` sums `prompt` (input) + `candidates` (output) + `cached` across every model in `stats.models` (the CLI may route a utility model plus the main model per call).
+  - **Why a new provider name, not a replacement for `gemini`** — the metered SDK path (`provider="gemini"` → `GenAIBridge`, Flex rebate + Pro context caching) stays the default. Subscription billing is opt-in via `--provider gemini-cli` so no caller is silently re-routed onto a personal Google subscription.
+  - 21 unit tests (`tests/test_gemini_cli_adapter.py`), offline-mocked, mirroring the Claude adapter test layout.
 
 ## [0.7.4] — 2026-05-09
 

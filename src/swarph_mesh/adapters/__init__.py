@@ -51,6 +51,13 @@ def get_adapter(provider: str, *, api_key: Optional[str] = None) -> LLMAdapter:
         _REGISTRY[provider] = adapter
         return adapter
 
+    if provider == "gemini-cli":
+        from swarph_mesh.adapters.gemini_cli import GeminiCLIAdapter
+
+        adapter = GeminiCLIAdapter(api_key=api_key)
+        _REGISTRY[provider] = adapter
+        return adapter
+
     if provider == "openai":
         from swarph_mesh.adapters.openai import OpenAIAdapter
 
