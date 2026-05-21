@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.7.5"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.5 adds the GeminiCLIAdapter (provider=\"gemini-cli\"): subprocess gemini -p subscription path mirroring ClaudeAdapter, OAuth-billed flat-rate ($0/call) via ~/.gemini/oauth_creds.json, with GEMINI_API_KEY/GOOGLE_API_KEY scrubbed from the subprocess env to prevent a silent flip to metered billing. The metered SDK path stays the default provider=\"gemini\"."
+version = "0.7.6"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.6 adds the GeminiCLIAdapter (provider=\"gemini-cli\"): a subprocess gemini -p subscription path mirroring ClaudeAdapter, OAuth-billed flat-rate ($0/call), with GEMINI_API_KEY/GOOGLE_API_KEY scrubbed from the subprocess env to prevent a silent flip to metered billing; default model pinned to the GA gemini-2.5-flash, override via GEMINI_SUBSCRIPTION_MODEL."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

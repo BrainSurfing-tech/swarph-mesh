@@ -16,6 +16,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per drop DM #761; targets slot between v0.7.6 + v0.7.7
 - **v0.7.7+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation; load-bearing prereq for mesh-as-OS service-worker cross-host dispatch
 
+## [0.7.6] — 2026-05-21
+
+### Changed
+
+- **`GeminiCLIAdapter` default model pinned to `gemini-2.5-flash`** (was: empty string → let the CLI pick). The CLI's own default routes to `gemini-3-flash-preview`, and the whole gemini-3.x Flash line (incl. the just-released 3.5 Flash, 2026-05-19) is **Preview status** — throttle-prone + timeout-prone on the subscription tier (observed: intermittent 30s+ timeouts even back-to-back). Pinning the GA model gives workers a stable, reliable default. Override anytime with no redeploy via `GEMINI_SUBSCRIPTION_MODEL` (e.g. set it to a 3.5 Flash preview id once it graduates to GA / is enabled on your subscription).
+
 ## [0.7.5] — 2026-05-21
 
 ### Added
