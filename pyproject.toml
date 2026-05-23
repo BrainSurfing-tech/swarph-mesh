@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.7.6"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.6 adds the GeminiCLIAdapter (provider=\"gemini-cli\"): a subprocess gemini -p subscription path mirroring ClaudeAdapter, OAuth-billed flat-rate ($0/call), with GEMINI_API_KEY/GOOGLE_API_KEY scrubbed from the subprocess env to prevent a silent flip to metered billing; default model pinned to the GA gemini-2.5-flash, override via GEMINI_SUBSCRIPTION_MODEL."
+version = "0.7.7"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.7 adds AntigravityAdapter (provider=\"antigravity\"): firejail-sandboxed `agy -p` subscription path (gemini-3.5-flash), the gemini-cli successor for Google's June-2026 gemini-CLI EOL. agy is agentic so every call runs in an OS sandbox (fs blast-radius sealed); scrub_env strips API keys + GOOGLE_APPLICATION_CREDENTIALS to force subscription. Dual-runs with gemini-cli."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"

@@ -58,6 +58,13 @@ def get_adapter(provider: str, *, api_key: Optional[str] = None) -> LLMAdapter:
         _REGISTRY[provider] = adapter
         return adapter
 
+    if provider == "antigravity":
+        from swarph_mesh.adapters.antigravity import AntigravityAdapter
+
+        adapter = AntigravityAdapter(api_key=api_key)
+        _REGISTRY[provider] = adapter
+        return adapter
+
     if provider == "openai":
         from swarph_mesh.adapters.openai import OpenAIAdapter
 

@@ -16,6 +16,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per drop DM #761; targets slot between v0.7.6 + v0.7.7
 - **v0.7.7+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation; load-bearing prereq for mesh-as-OS service-worker cross-host dispatch
 
+## [0.7.7] — 2026-05-23
+
+### Added
+
+- **`AntigravityAdapter` — `provider="antigravity"`** — firejail-sandboxed `agy -p` subscription path (gemini-3.5-flash), the **successor to `GeminiCLIAdapter`** for Google's **June-2026 gemini-CLI discontinuation**. agy reuses `~/.gemini/antigravity-cli/antigravity-oauth-token` (subscription, `cost_usd=0.0`) and unlocks 3.5-flash (preview-gated on the old gemini CLI).
+  - **Security — agy is agentic.** Spike found `agy -p` auto-fires fs/bash tools, has no `--no-tools` flag, and `--sandbox` doesn't contain the filesystem. So every call runs inside a **firejail OS sandbox** whitelisting only agy's binary + its `~/.gemini/antigravity-cli` runtime dir, `--caps.drop=all --nonewprivs --noroot --seccomp --private-tmp`. Verified: a read outside the whitelist is BLOCKED; the LLM call still works. fs blast-radius sealed. Residual (accepted v1): network egress stays open (the LLM call needs 443) — documented.
+  - **Billing-leak guard extended:** `scrub_env_for_subprocess` strips `*_API_KEY` by suffix but missed `GOOGLE_APPLICATION_CREDENTIALS` + project vars (`GOOGLE_CLOUD_PROJECT`, `VERTEX_*`); the adapter strips them explicitly so no metered Vertex/GCP fallback can fire.
+  - **Per-call audit log** (rollout-observation): `{ts, prompt_sha8, exit, duration, resp_len, timed_out, stderr_tail}` to `swarph_audit.jsonl`. firejail `--trace` is seccomp-incompatible, so observation happens at the adapter layer (semantic signal > syscall noise). 14 unit tests.
+  - **Dual-runs with `gemini-cli`** until the June EOL; AI²-reviewed end-to-end with droplet (DMs #1383–#1391).
+- **Version drift fix:** `__init__.__version__` was stale at 0.7.4 (the 0.7.5/0.7.6 publishes bumped only `pyproject`); now synced to 0.7.7.
+
 ## [0.7.6] — 2026-05-21
 
 ### Changed
