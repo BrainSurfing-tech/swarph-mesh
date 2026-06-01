@@ -386,10 +386,17 @@ class MeshClient:
                 f"server.py POST /messages handler.)"
             )
 
-        # Recipient validation — strict=False because the gateway may
-        # not be reachable from caller's perspective at the moment;
-        # we still want regex + alias resolution.
-        canonical_to = validate_node_name(to, strict=False)
+        # Recipient validation — FAIL-CLOSED (strict=True). A send is about to
+        # hit the same gateway via POST /messages, so the registry's /peers is
+        # reachable in the normal case (and a warm TTL cache covers transient
+        # blips). strict=False used to fail OPEN: a /peers hiccup skipped the
+        # registry check and let a regex-valid-but-unregistered name through,
+        # POSTing the DM into the void (adversarial-sweep auth-bypass HIGH).
+        # Pass this client's own gateway_url + token so the registry check hits
+        # the SAME gateway we POST to (not the MESH_GATEWAY_URL env default).
+        canonical_to = validate_node_name(
+            to, strict=True, gateway_url=self._gateway_url, token=self._token,
+        )
 
         # Best-effort credential leak guard. Operator can disable for
         # legitimate prose mentioning credential shapes.

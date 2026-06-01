@@ -22,6 +22,24 @@ from swarph_mesh import (
 from swarph_mesh.mesh_client import _check_no_secret
 
 
+@pytest.fixture(autouse=True)
+def _seed_registry_cache():
+    """Offline tests have no real ``/peers`` endpoint. send() now validates the
+    recipient FAIL-CLOSED (strict=True), so seed the registry TTL cache with the
+    canonical peers these tests use — the check then resolves without a network
+    hit. Tests exercising the cold-cache / unreachable path clear it explicitly.
+    """
+    import time
+    from swarph_shared import peer_registry
+    peer_registry._cache["names"] = frozenset(
+        {"droplet", "lab-ovh", "gridiron", "science-claude",
+         "workstation-lc", "gemini-researcher", "gpt-ovh"}
+    )
+    peer_registry._cache["fetched_at"] = time.time()
+    yield
+    peer_registry._clear_cache()
+
+
 # ---------------------------------------------------------------------------
 # Helpers — httpx MockTransport for offline tests
 # ---------------------------------------------------------------------------
@@ -324,12 +342,28 @@ def test_send_response_with_no_content_field_is_accepted():
 def test_send_validates_recipient_name():
     """Invalid (non-canonical) recipient → ValueError BEFORE the POST.
 
-    swarph_shared.validate_node_name with strict=False still applies
-    regex check + alias resolution.
+    The regex check is first in validate_node_name (strict-independent), so a
+    malformed name is rejected regardless of registry reachability.
     """
     client = MeshClient(node="lab-ovh", token="t", validate_self_name=False)
     with pytest.raises(ValueError, match="naming convention"):
         asyncio.run(client.send(to="Bad-Name", kind="fyi", content="x"))
+
+
+def test_send_fails_closed_when_recipient_unverifiable():
+    """HIGH regression (auth-bypass, mesh_client.py:392): when the recipient
+    cannot be verified against the registry (cold cache + gateway unreachable),
+    send must RAISE — not fail open and POST the DM to a possibly-void name."""
+    import time
+    from swarph_shared import peer_registry, GatewayUnreachableError
+    peer_registry._clear_cache()  # cold: force a real /peers attempt
+    client = MeshClient(
+        node="lab-ovh", token="t", validate_self_name=False,
+        gateway_url="http://127.0.0.1:9",  # refuses fast; unreachable /peers
+    )
+    with pytest.raises(GatewayUnreachableError):
+        asyncio.run(client.send(
+            to="ghost-but-regex-valid", kind="fyi", content="x"))
 
 
 def test_send_resolves_known_alias():
