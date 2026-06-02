@@ -378,3 +378,47 @@ def test_unknown_provider_raises_on_first_use():
     sc = SwarphCall(provider="ghost", caller="test.case.ghost")
     with pytest.raises(Exception):  # UnknownProvider
         asyncio.run(sc.chat(messages=[ChatMessage(role="user", content="x")]))
+
+
+def test_json_harness_retry_tokens_folded_into_resp(file_writer):
+    """The retry consumes REAL tokens/cost; they must fold into resp so the
+    single post_call attribution reflects TOTAL spend (adversarial-sweep MED —
+    retry spend was invisible to attribution before)."""
+    reset_registry()
+
+    class _TokRetryAdapter:
+        name = "tokretry"
+        default_model = "t-v1"
+
+        def __init__(self):
+            self.n = 0
+
+        async def chat(self, messages, model, **kwargs):
+            self.n += 1
+            if self.n == 1:
+                return LLMResponse(text="prose, no json", input_tokens=100,
+                                   output_tokens=20, cost_usd=0.05, duration_s=0.01)
+            return LLMResponse(text='{"ok": true}', input_tokens=30,
+                               output_tokens=10, cost_usd=0.02, duration_s=0.01)
+
+        async def stream(self, *a, **kw):
+            if False:
+                yield ""
+
+        def cost_per_token(self, model):
+            return (0.0, 0.0)
+
+    a = _TokRetryAdapter()
+    register_adapter("tokretry", a)
+    sc = SwarphCall(provider="tokretry", caller="test.tok.retry")
+    resp = asyncio.run(sc.chat(
+        messages=[ChatMessage(role="user", content="x")],
+        json_schema={"type": "object"},
+    ))
+    assert a.n == 2
+    assert resp.parsed == {"ok": True}
+    # initial (100/20/$0.05) + retry (30/10/$0.02) folded into the one resp
+    assert resp.input_tokens == 130
+    assert resp.output_tokens == 30
+    assert abs(resp.cost_usd - 0.07) < 1e-9
+    reset_registry()

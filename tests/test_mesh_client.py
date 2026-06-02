@@ -600,3 +600,24 @@ def test_async_context_manager_closes_client():
         assert c._client is None
 
     asyncio.run(_go())
+
+
+def test_check_no_secret_catches_bare_gateway_token(monkeypatch):
+    """A bare MESH_GATEWAY_TOKEN value pasted into content (WITHOUT the literal
+    string 'MESH_GATEWAY_TOKEN' co-occurring) must be caught. The regex lookahead
+    missed this — the common leak case (adversarial-sweep MED)."""
+    tok = "Zk9xQ2vT" + "A1b2C3d4" * 6   # 56 chars, token-shaped, no lookahead trigger
+    monkeypatch.setenv("MESH_GATEWAY_TOKEN", tok)
+    with pytest.raises(MeshSecretLeakError):
+        _check_no_secret(f"hey here's the gateway creds: {tok} thanks")
+
+
+def test_check_no_secret_clean_when_token_not_present(monkeypatch):
+    monkeypatch.setenv("MESH_GATEWAY_TOKEN", "Zk9xQ2vT" + "A1b2C3d4" * 6)
+    _check_no_secret("a perfectly normal mesh message about the weather")  # no raise
+
+
+def test_check_no_secret_ignores_short_or_unset_token(monkeypatch):
+    # Empty/short env token must NOT make every message a false positive.
+    monkeypatch.setenv("MESH_GATEWAY_TOKEN", "x")
+    _check_no_secret("x marks the spot")  # no raise (len < 16 guard)

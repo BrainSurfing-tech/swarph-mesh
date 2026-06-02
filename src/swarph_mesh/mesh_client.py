@@ -139,6 +139,18 @@ def _check_no_secret(content: str) -> None:
     """Raise :class:`MeshSecretLeakError` if content looks like it
     carries a credential. Best-effort; expected to miss novel shapes.
     """
+    # Exact-match the LIVE gateway token value. The regex pattern below uses a
+    # `(?=.*MESH_GATEWAY_TOKEN)` lookahead, so it only fires when the literal
+    # string 'MESH_GATEWAY_TOKEN' co-occurs — a bare token PASTE (the common
+    # leak) sailed through. Comparing against the actual env value is exact
+    # (zero false positives) and catches that case. (adversarial-sweep MED.)
+    env_tok = os.environ.get(GATEWAY_TOKEN_ENV, "").strip()
+    if env_tok and len(env_tok) >= 16 and env_tok in content:
+        raise MeshSecretLeakError(
+            f"refusing to send: content contains the live {GATEWAY_TOKEN_ENV} "
+            "value. Mesh secrets out-of-band only — NEVER ride /messages content "
+            "fields. (CLAUDE.md mesh-secrets rule.)"
+        )
     for label, rx in _CRED_PATTERNS:
         if rx.search(content):
             raise MeshSecretLeakError(

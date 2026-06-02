@@ -50,20 +50,36 @@ V4_PRO_PROMO_PRICING: tuple[float, float] = (0.435, 0.87)
 
 
 def _v4_pro_pricing() -> tuple[float, float]:
-    """Return current V4-Pro pricing, warning if the promo verification
-    window has lapsed (issue #6 part 2). Returns the promo price
-    regardless — caller decides to override via PRICING dict if they
-    have fresher data."""
+    """Return current V4-Pro pricing. Evaluate at CALL TIME (not import) so the
+    promo→normal flip is honored without a process restart.
+
+    Past the verify-after date the promo is UNVERIFIED, so we return the NORMAL
+    price — fail toward OVER-billing rather than keep attributing at the 75%-off
+    promo rate (which silently under-bills 4× after the promo ends). Before the
+    date, the promo rate stands. (adversarial-sweep LOW; was frozen at import +
+    always returned promo, warning-only.)"""
     if datetime.date.today() > V4_PRO_PROMO_VERIFY_AFTER:
         warnings.warn(
-            f"deepseek-v4-pro PRICING was last verified on "
-            f"{V4_PRO_PROMO_VERIFIED_AT}; the promo may have ended. "
-            f"Verify against https://api-docs.deepseek.com/quick_start/pricing/ "
-            f"and update PRICING + V4_PRO_PROMO_VERIFIED_AT in adapters/deepseek.py.",
+            f"deepseek-v4-pro promo was last verified {V4_PRO_PROMO_VERIFIED_AT}; "
+            f"the verify-after date ({V4_PRO_PROMO_VERIFY_AFTER}) has passed — "
+            f"defaulting to NORMAL pricing {V4_PRO_NORMAL_PRICING} (fail toward "
+            f"over-billing). Verify https://api-docs.deepseek.com/quick_start/pricing/ "
+            f"and update V4_PRO_PROMO_VERIFIED_AT in adapters/deepseek.py if the promo holds.",
             UserWarning,
             stacklevel=3,
         )
+        return V4_PRO_NORMAL_PRICING
     return V4_PRO_PROMO_PRICING
+
+
+def _pricing_for(canonical: str) -> tuple[float, float]:
+    """PRICING lookup with CALL-TIME resolution for deepseek-v4-pro (its promo
+    price flips to normal past the verify-after date — see ``_v4_pro_pricing``).
+    The frozen ``PRICING['deepseek-v4-pro']`` import-time value is NOT the source
+    of truth; route adapter cost math through here."""
+    if canonical == "deepseek-v4-pro":
+        return _v4_pro_pricing()
+    return PRICING.get(canonical, PRICING["_default"])
 
 
 # Per-Mtok pricing (USD), 2026-05-08 baseline.
@@ -122,7 +138,7 @@ def _compute_cost(
     tier — pricing is flat per model. v0.6.1 normalizes prefix shapes
     via ``_normalize_deepseek_id``."""
     canonical = _normalize_deepseek_id(model)
-    in_per_mtok, out_per_mtok = PRICING.get(canonical, PRICING["_default"])
+    in_per_mtok, out_per_mtok = _pricing_for(canonical)
     return (
         (input_tokens / 1_000_000.0) * in_per_mtok
         + (output_tokens / 1_000_000.0) * out_per_mtok
@@ -284,7 +300,7 @@ class DeepSeekAdapter:
         """Return (input_per_mtok, output_per_mtok) USD for ``model``.
         v0.6.1: normalizes ``deepseek/`` prefix + version suffixes via
         ``_normalize_deepseek_id`` before PRICING lookup."""
-        return PRICING.get(_normalize_deepseek_id(model), PRICING["_default"])
+        return _pricing_for(_normalize_deepseek_id(model))
 
     def list_models(self, *, ttl_seconds: int = 86400):
         """v0.6.0 catalog query — AIMLAPI primary + per-provider fallback."""

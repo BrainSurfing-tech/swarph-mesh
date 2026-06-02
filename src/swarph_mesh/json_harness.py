@@ -84,6 +84,7 @@ def make_retry_callback(
     system_prompt: Optional[str],
     temperature: float,
     max_tokens: Optional[int],
+    accumulator: Optional[list] = None,
 ) -> RetryCallback:
     """Build the on_retry callback the harness expects.
 
@@ -91,6 +92,11 @@ def make_retry_callback(
     NOT concatenated to the prior prompt). Recursion through the
     JSON harness is explicitly disabled by passing
     ``json_schema=None`` so a malformed retry can't infinite-loop.
+
+    ``accumulator``: if provided, each retry's ``LLMResponse`` is appended so
+    the caller can fold its tokens + cost into the returned response. The retry
+    consumes real tokens/cost; without this they're invisible to attribution
+    (cost dashboards undercount every schema call that needed a retry — sweep MED).
     """
 
     async def _on_retry(feedback: str) -> str:
@@ -105,6 +111,8 @@ def make_retry_callback(
             temperature=temperature,
             max_tokens=max_tokens,
         )
+        if accumulator is not None:
+            accumulator.append(resp)
         return resp.text
 
     return _on_retry
