@@ -300,10 +300,15 @@ class GeminiCLIAdapter:
         input_tokens, output_tokens, cached = _aggregate_tokens(stats)
 
         # Pick the primary model name for pricing: the model the caller
-        # asked for, else the first model in stats, else _default.
-        priced_model = model or next(
+        # Prefer the model the gemini CLI ACTUALLY ran (stats) over the caller-
+        # requested model. The subscription tier can silently downgrade pro→flash
+        # (or invoke a utility router), so pricing a requested-pro rate against
+        # flash tokens makes the metered-equivalent audit figure materially wrong.
+        # Fall back to the requested model only when stats is empty. (sweep MED;
+        # drives both api_metered_cost_usd and raw_response['model'].)
+        priced_model = next(
             iter((stats.get("models") or {}).keys()), ""
-        )
+        ) or model or ""
         in_per_mtok, out_per_mtok = PRICING.get(priced_model, PRICING["_default"])
         api_metered_cost_usd = (
             (input_tokens / 1_000_000.0) * in_per_mtok

@@ -420,3 +420,27 @@ def test_unknown_provider_error_mentions_phase_4_carry_forwards():
     reset_registry()
     with pytest.raises(UnknownProvider, match="claude.*openai.*grok|deepseek"):
         get_adapter("anthropic-claude")
+
+
+def test_v4_pro_pricing_flips_to_normal_after_verify_after(monkeypatch):
+    """Past the verify-after date the promo is unverified → return NORMAL price
+    (fail toward over-billing), evaluated at CALL time. Before → promo stands.
+    (adversarial-sweep LOW — was frozen at import + always promo.)"""
+    import datetime
+    import warnings
+    import swarph_mesh.adapters.deepseek as ds
+
+    # verify-after in the future → promo still stands
+    monkeypatch.setattr(ds, "V4_PRO_PROMO_VERIFY_AFTER", datetime.date(2999, 1, 1))
+    assert ds._pricing_for("deepseek-v4-pro") == ds.V4_PRO_PROMO_PRICING
+
+    # verify-after in the past → NORMAL (over-bill) + a warning
+    monkeypatch.setattr(ds, "V4_PRO_PROMO_VERIFY_AFTER", datetime.date(2000, 1, 1))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        assert ds._pricing_for("deepseek-v4-pro") == ds.V4_PRO_NORMAL_PRICING
+    with pytest.warns(UserWarning):
+        ds._pricing_for("deepseek-v4-pro")
+
+    # non-promo models are unaffected
+    assert ds._pricing_for("deepseek-v4-flash") == (0.14, 0.28)

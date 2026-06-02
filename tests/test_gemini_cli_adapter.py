@@ -260,3 +260,21 @@ def test_chat_raises_on_missing_binary():
     with patch("subprocess.run", side_effect=FileNotFoundError()):
         with pytest.raises(AdapterError, match="binary not found"):
             asyncio.run(a.chat([ChatMessage(role="user", content="x")], model=""))
+
+
+def test_chat_prices_actual_model_not_requested():
+    """Subscription tier can silently downgrade pro→flash; pricing AND
+    raw_response['model'] must reflect the model ACTUALLY run (stats), not the
+    requested one (adversarial-sweep MED — was pricing requested-pro vs flash)."""
+    from swarph_mesh.adapters.gemini_cli import PRICING
+    a = GeminiCLIAdapter(gemini_bin="/fake/gemini")
+    # stats says FLASH ran, but the caller asked for PRO
+    proc = _mock_proc(models={"gemini-3-flash":
+                              {"tokens": {"prompt": 1000, "candidates": 500, "cached": 0}}})
+    with patch("subprocess.run", return_value=proc):
+        resp = asyncio.run(a.chat([ChatMessage(role="user", content="hi")],
+                                  model="gemini-2.5-pro"))
+    assert resp.raw_response["model"] == "gemini-3-flash"          # actual, not requested
+    fin, fout = PRICING.get("gemini-3-flash", PRICING["_default"])
+    expected = (1000 / 1e6) * fin + (500 / 1e6) * fout            # priced as flash
+    assert abs(resp.raw_response["api_metered_cost_usd"] - expected) < 1e-9

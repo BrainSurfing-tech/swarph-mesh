@@ -173,6 +173,7 @@ class SwarphCall:
 
         # JSON-mode harness if a schema was requested
         if json_schema is not None:
+            retry_resps: list = []
             on_retry = make_retry_callback(
                 adapter=adapter,
                 base_messages=ctx.messages,
@@ -180,11 +181,20 @@ class SwarphCall:
                 system_prompt=ctx.system_prompt,
                 temperature=ctx.temperature,
                 max_tokens=ctx.max_tokens,
+                accumulator=retry_resps,
             )
             parsed, error_class = await parse_with_retry(resp.text, on_retry)
             resp.parsed = parsed
             if error_class:
                 resp.error_class = error_class
+            # Fold the retry's real tokens + cost into resp so the SINGLE
+            # post_call attribution below reflects TOTAL spend. Without this the
+            # retry's tokens are invisible to attribution → dashboards undercount
+            # every schema call that needed a retry (adversarial-sweep MED).
+            for r in retry_resps:
+                resp.input_tokens += r.input_tokens
+                resp.output_tokens += r.output_tokens
+                resp.cost_usd += r.cost_usd
 
         # Post-call hooks (attribution writer included by default)
         for hook in self.hooks.post_call:
