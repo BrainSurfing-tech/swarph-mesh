@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.7.7"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.7 adds AntigravityAdapter (provider=\"antigravity\"): firejail-sandboxed `agy -p` subscription path (gemini-3.5-flash), the gemini-cli successor for Google's June-2026 gemini-CLI EOL. agy is agentic so every call runs in an OS sandbox (fs blast-radius sealed); scrub_env strips API keys + GOOGLE_APPLICATION_CREDENTIALS to force subscription. Dual-runs with gemini-cli."
+version = "0.7.8"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.8 hardens the substrate (adversarial sweep): recipient validation fails CLOSED on send (no mis-route on a gateway blip), the secret-leak guard catches a bare MESH_GATEWAY_TOKEN paste, gemini prices the model actually run, JSON-retry tokens fold into attribution, and deepseek V4-Pro pricing fails toward over-billing past its promo."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
