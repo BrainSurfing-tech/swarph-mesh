@@ -7,15 +7,23 @@ uniform :class:`AdapterSpec` record.
 
 from __future__ import annotations
 
+from swarph_mesh.registry.instances import (
+    OPENCLAW_SPEC,
+    OPENROUTER_SPEC,
+    register_builtin_instances,
+)
 from swarph_mesh.registry.probes import GateResult, GateStatus, probe_adapter
 from swarph_mesh.registry.registry import AdapterRegistry, NoLaneError
 from swarph_mesh.registry.spec import AdapterSpec
 
 __all__ = [
+    "OPENCLAW_SPEC",
+    "OPENROUTER_SPEC",
     "AdapterRegistry",
     "AdapterSpec",
     "GateResult",
     "GateStatus",
     "NoLaneError",
     "probe_adapter",
+    "register_builtin_instances",
 ]
