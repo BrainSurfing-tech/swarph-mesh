@@ -7,6 +7,7 @@ uniform :class:`AdapterSpec` record.
 
 from __future__ import annotations
 
+from swarph_mesh.registry.access import get_registry, reset_builtin_registry
 from swarph_mesh.registry.indexer import (
     SKUNKWORKS_CAPABILITY,
     capability_payload,
@@ -31,7 +32,9 @@ __all__ = [
     "GateStatus",
     "NoLaneError",
     "capability_payload",
+    "get_registry",
     "make_indexer_hook",
     "probe_adapter",
     "register_builtin_instances",
+    "reset_builtin_registry",
 ]
