@@ -49,6 +49,11 @@ from swarph_mesh.types import (
 # Phase 1 surfaces
 from swarph_mesh.swarph_call import SwarphCall
 from swarph_mesh.adapters import get_adapter, register_adapter
+
+# Capability layer (P2) — AdapterRegistry over EXTERNAL wrapped tools (cli/router).
+# COEXISTS with adapters.get_adapter (transport factory, built-in SDK adapters);
+# the built-in SDK adapters are a distinct shape not modeled by AdapterSpec.
+from swarph_mesh.registry import get_registry
 from swarph_mesh.attribution import (
     AttributionEvent,
     AttributionWriter,
@@ -120,6 +125,8 @@ __all__ = [
     "SwarphCall",
     "get_adapter",
     "register_adapter",
+    # registry capability layer (P2)
+    "get_registry",
     # attribution
     "AttributionEvent",
     "AttributionWriter",
