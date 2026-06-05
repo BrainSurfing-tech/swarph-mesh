@@ -7,6 +7,11 @@ uniform :class:`AdapterSpec` record.
 
 from __future__ import annotations
 
+from swarph_mesh.registry.indexer import (
+    SKUNKWORKS_CAPABILITY,
+    capability_payload,
+    make_indexer_hook,
+)
 from swarph_mesh.registry.instances import (
     OPENCLAW_SPEC,
     OPENROUTER_SPEC,
@@ -19,11 +24,14 @@ from swarph_mesh.registry.spec import AdapterSpec
 __all__ = [
     "OPENCLAW_SPEC",
     "OPENROUTER_SPEC",
+    "SKUNKWORKS_CAPABILITY",
     "AdapterRegistry",
     "AdapterSpec",
     "GateResult",
     "GateStatus",
     "NoLaneError",
+    "capability_payload",
+    "make_indexer_hook",
     "probe_adapter",
     "register_builtin_instances",
 ]
