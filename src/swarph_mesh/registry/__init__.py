@@ -7,6 +7,7 @@ uniform :class:`AdapterSpec` record.
 
 from __future__ import annotations
 
+from swarph_mesh.registry.probes import GateResult, GateStatus, probe_adapter
 from swarph_mesh.registry.spec import AdapterSpec
 
-__all__ = ["AdapterSpec"]
+__all__ = ["AdapterSpec", "GateResult", "GateStatus", "probe_adapter"]
