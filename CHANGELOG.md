@@ -8,12 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-### Foundations sprint queue (per drop DM #745 + #751 ordering)
+### Foundations sprint queue
 
 > **Renumber note (2026-05-21):** the queued node-implementer guide slot shifted v0.7.5 → v0.7.6 (and transport-agnostic mesh → v0.7.7) because v0.7.5 shipped the GeminiCLIAdapter — built, tested, and ready ahead of the guide. Shipped-and-tested takes the lower number; the planned ordering below is otherwise unchanged.
 
 - **v0.7.6** — Node-implementer guide (`docs/becoming-a-node.md`) + protocol-stability test ratchet (mypy strict expanded one module)
-- **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per drop DM #761; targets slot between v0.7.6 + v0.7.7
+- **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per a design review; targets slot between v0.7.6 + v0.7.7
 - **v0.7.7+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation; load-bearing prereq for mesh-as-OS service-worker cross-host dispatch
 
 ## [0.7.7] — 2026-05-23
@@ -24,7 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - **Security — agy is agentic.** Spike found `agy -p` auto-fires fs/bash tools, has no `--no-tools` flag, and `--sandbox` doesn't contain the filesystem. So every call runs inside a **firejail OS sandbox** whitelisting only agy's binary + its `~/.gemini/antigravity-cli` runtime dir, `--caps.drop=all --nonewprivs --noroot --seccomp --private-tmp`. Verified: a read outside the whitelist is BLOCKED; the LLM call still works. fs blast-radius sealed. Residual (accepted v1): network egress stays open (the LLM call needs 443) — documented.
   - **Billing-leak guard extended:** `scrub_env_for_subprocess` strips `*_API_KEY` by suffix but missed `GOOGLE_APPLICATION_CREDENTIALS` + project vars (`GOOGLE_CLOUD_PROJECT`, `VERTEX_*`); the adapter strips them explicitly so no metered Vertex/GCP fallback can fire.
   - **Per-call audit log** (rollout-observation): `{ts, prompt_sha8, exit, duration, resp_len, timed_out, stderr_tail}` to `swarph_audit.jsonl`. firejail `--trace` is seccomp-incompatible, so observation happens at the adapter layer (semantic signal > syscall noise). 14 unit tests.
-  - **Dual-runs with `gemini-cli`** until the June EOL; AI²-reviewed end-to-end with droplet (DMs #1383–#1391).
+  - **Dual-runs with `gemini-cli`** until the June EOL; AI²-reviewed end-to-end with a review peer.
 - **Version drift fix:** `__init__.__version__` was stale at 0.7.4 (the 0.7.5/0.7.6 publishes bumped only `pyproject`); now synced to 0.7.7.
 
 ## [0.7.6] — 2026-05-21
@@ -79,7 +79,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
-- **Python 3.10 support honored** — `discovery.py` had three `_dt.UTC` callsites (Python 3.11+ only) at lines 424, 702, 933, despite `pyproject.toml` declaring `requires-python = ">=3.10"`. Replaced with `_dt.timezone.utc` (works on all 3.10+). The same failure was silently present on PRs #17/#18/#19 (v0.7.0/v0.7.1/v0.7.2) where the pytest 3.10 matrix arm was treated as non-blocking; v0.7.3 review (drop DM #763) caught the discipline drift and fixed it in-PR. Discovered tests on Python 3.11/3.13 always passed; only 3.10 leg failed with `AttributeError: module 'datetime' has no attribute 'UTC'`. Honors the declared contract surface in keeping with the doc-surface-as-hardening framing of this release.
+- **Python 3.10 support honored** — `discovery.py` had three `_dt.UTC` callsites (Python 3.11+ only) at lines 424, 702, 933, despite `pyproject.toml` declaring `requires-python = ">=3.10"`. Replaced with `_dt.timezone.utc` (works on all 3.10+). The same failure was silently present on PRs #17/#18/#19 (v0.7.0/v0.7.1/v0.7.2) where the pytest 3.10 matrix arm was treated as non-blocking; v0.7.3 review caught the discipline drift and fixed it in-PR. Discovered tests on Python 3.11/3.13 always passed; only 3.10 leg failed with `AttributeError: module 'datetime' has no attribute 'UTC'`. Honors the declared contract surface in keeping with the doc-surface-as-hardening framing of this release.
 - **`docs/_static/.gitkeep`** added — empty directory wasn't tracked by git, causing strict-mode `sphinx-build -W` to fail in CI on `html_static_path entry '_static' does not exist` (worked locally because Sphinx tolerates missing `_static` in non-strict mode). Caught by drop on first CI invocation — confirms the doc-surface-as-contract-enforcement hypothesis on its first real run.
 
 ### Notes
@@ -127,7 +127,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   6. Ratification bypass (`task_claim` for `ratified=false`, `peer_ratifications` mutability)
   7. Protocol contract violation (`LLMAdapter` / `MeshMessage` / `MeshClient.send` / `discovery` API changes without deprecation window — anchored in [DEPRECATIONS.md](./DEPRECATIONS.md))
   8. Catalog poisoning (crafted `ModelInfo` records via AIMLAPI or `/v1/models`)
-  9. DM contagion (`lab-claude` vs `lab-ovh` framing-contagion class promoted to security concern; pre-federation cross-mesh status leaks)
+  9. DM contagion (a peer-name-alias drift class (e.g. `db` vs `database-node`) promoted to security concern; pre-federation cross-mesh status leaks)
 - Reporting channels: `pierresamson@gmail.com` with `[swarph-mesh security]` subject prefix, GitHub Security Advisory (preferred for repo-scoped findings).
 - Response timeline commitments: 48h ack / 5 business days triage / 14d high-critical fix / 30d medium / 90d low.
 - Hardening commitment per minor release (at least one of: secret-guard regex tightening, protocol-stability snapshot expansion, mypy strict module ratchet, privilege-boundary test addition).
@@ -172,7 +172,7 @@ Pure governance artifact addition. No Protocol changes. No API removals. Backwar
 
 ### Fixed
 
-- Test fixture `test_canonical_adapter_names_in_registry_dispatch` was caching fake-key adapters in the singleton registry, silently poisoning live smoke tests later in the same run. Wrapped in `reset_registry()` try/finally. Caught when full pytest run started failing `tests/test_smoke_deepseek` with 401 errors from leftover fake keys. The class is now documented in `feedback_singleton_pollution_across_tests.md` (lab + droplet auto-memory mirrors).
+- Test fixture `test_canonical_adapter_names_in_registry_dispatch` was caching fake-key adapters in the singleton registry, silently poisoning live smoke tests later in the same run. Wrapped in `reset_registry()` try/finally. Caught when full pytest run started failing `tests/test_smoke_deepseek` with 401 errors from leftover fake keys. The class is now documented internally.
 
 ### Notes
 
@@ -190,11 +190,11 @@ Major-style minor signals foundations-layer shift in v0.7.x line. Each subsequen
   - `o1-pro` (premium reasoner $150/$600)
   - `o3-pro` ($20/$80)
 
-- **Centralized normalizers** in `swarph_mesh.discovery` (drop DM #745 obs #1):
+- **Centralized normalizers** in `swarph_mesh.discovery`:
   - `normalize_xai_id`, `normalize_deepseek_id`, `normalize_model_id` (provider-aware dispatcher)
   - Adapter-local `_normalize_*_id` copies preserved for back-compat
 
-- **Shared retirement registry** (drop DM #745 obs #2):
+- **Shared retirement registry**:
   - `_RETIREMENT_REGISTRY` dict keyed by `provider/model_id` → ISO date OR `"deprecated"` sentinel
   - Public API: `is_retired(provider, model_id, today=None)` + `retirement_date(provider, model_id)`
   - Initial entries: `grok/grok-4` + `grok/grok-code-fast-1` (2026-05-15); `claude/claude-sonnet-3-7` + `claude/claude-opus-3` (deprecated sentinels)
@@ -226,7 +226,7 @@ Major-style minor signals foundations-layer shift in v0.7.x line. Each subsequen
 
 ### Notes
 
-PR #14 was auto-closed when its stacked base (PR #13 `feat/v0-6-0-discovery`) was deleted on merge; recovered by opening PR #15 with `base=main` carrying drop's #745 approval forward. Class documented in `feedback_stacked_pr_base_delete.md`.
+PR #14 was auto-closed when its stacked base (PR #13 `feat/v0-6-0-discovery`) was deleted on merge; recovered by opening PR #15 with `base=main` carrying the prior approval forward. Class documented internally.
 
 ## [0.6.0] — 2026-05-09
 

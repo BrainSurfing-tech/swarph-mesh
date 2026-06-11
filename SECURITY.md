@@ -26,7 +26,7 @@ A vulnerability is in scope if any of the following:
 - **Ratification bypass** — `task_claim` succeeding for a `ratified=false` peer, or the `peer_ratifications` audit log being mutable post-write.
 - **Protocol contract violation** — a change to `LLMAdapter` Protocol surface, `MeshMessage` shape, `MeshClient.send` parameters, or `discovery` public API that ships without a deprecation window per `DEPRECATIONS.md` (forthcoming v0.7.2).
 - **Catalog poisoning** — paths where AIMLAPI catalog data or per-provider `/v1/models` responses can inject crafted `ModelInfo` records that break adapter dispatch or mis-attribute cost.
-- **DM contagion** — paths where wrong-name DMs route to the wrong peer (the `lab-claude` vs `lab-ovh` framing-contagion class), or where ratified-peer status leaks across mesh boundaries before federation.
+- **DM contagion** — paths where wrong-name DMs route to the wrong peer (the a peer-name-alias drift class (e.g. `db` vs `database-node`)), or where ratified-peer status leaks across mesh boundaries before federation.
 - **Substrate dependency CVE** — known CVE in `httpx`, `pydantic`, `openai`, `langgraph-genai-bridge`, or `swarph-shared` that swarph-mesh exposes to consumers.
 
 A vulnerability is **out of scope** if:

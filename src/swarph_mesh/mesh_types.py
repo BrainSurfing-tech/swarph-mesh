@@ -3,7 +3,7 @@
 Shape derived from the live gateway at http://lab-ovh:8788 (2026-05-08).
 Stable enough to type against; Phase 3+ migrations on the gateway side
 will add fields rather than rename existing ones (per the swarph
-conventions captured in CLAUDE.md hedge-fund-mcp).
+conventions captured in the mesh design notes).
 """
 
 from __future__ import annotations

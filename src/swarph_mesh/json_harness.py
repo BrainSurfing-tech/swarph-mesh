@@ -1,7 +1,7 @@
 """Pydantic structured-output harness per PLAN.md §7.
 
 Implements the retry-once-with-[USER]-turn-feedback shape locked in
-PR #125 (hedge-fund-mcp) + swarph_shared.json_mode.
+swarph_shared.json_mode.
 
 We do NOT use ``swarph_shared.parse_json_with_retry`` directly here
 because that helper takes a sync callback and our adapter's

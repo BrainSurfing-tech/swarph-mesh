@@ -28,7 +28,7 @@ class AttributionEvent:
 
     Fields match the shape consumed by the OMEGA ``token_usage`` /
     ``subscription_usage`` TimescaleDB hypertables (see
-    hedge-fund-mcp ``database/init_timescale.sql``). External
+    a time-series store). External
     consumers can map to their own schema in their writer impl.
     """
 

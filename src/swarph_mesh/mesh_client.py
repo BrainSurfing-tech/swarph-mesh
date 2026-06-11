@@ -4,8 +4,6 @@ PLAN.md §5.
 Replaces the hand-rolled curl-based code in:
 
 * ``lab-orchestrator/scripts/lab_loop_drain.py``
-* ``hedge-fund-mcp/scripts/mesh_inbox_watcher.py`` (droplet-side)
-* ``hedge-fund-mcp/scripts/science_claude_inbox_drain.py``
 * assorted ad-hoc curl invocations in CLAUDE.md / session ritual
 
 with a single typed surface so cross-Claude DM coordination doesn't
@@ -432,7 +430,7 @@ class MeshClient:
     async def mark_read(self, msg_id: int) -> None:
         """``POST /messages/{msg_id}/read`` — flip ``read_at`` on a DM.
 
-        Per CLAUDE.md droplet-side mesh DM drain rule, the cron-side
+        Per the mesh DM drain convention, the cron-side
         watcher does NOT mark read; only the commander or the
         peer-in-session does. Adapter callers consuming inboxes
         should mark-read explicitly when they've actually processed

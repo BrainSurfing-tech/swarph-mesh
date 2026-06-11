@@ -78,23 +78,18 @@ from swarph_mesh import MeshClient
 import os
 
 # Phase 3 — mesh-gateway DM coordination
-async with MeshClient(node="lab-ovh") as client:  # token from MESH_GATEWAY_TOKEN env
+async with MeshClient(node="my-cell") as client:  # token from MESH_GATEWAY_TOKEN env
     peers = await client.list_peers()
     msgs = await client.fetch(unread_only=True)
-    sent = await client.send(to="droplet", kind="fyi", content="hello")
+    sent = await client.send(to="peer-cell", kind="fyi", content="hello")
     await client.mark_read(msgs[0].id)
 ```
 
 `MeshClient.send()` enforces two structural invariants:
 
 1. **Recipient name validation** via `swarph_shared.validate_node_name` — closes the framing-contagion class (Vector A peer-onboarding chatter, Vector B human-prompt shorthand).
-2. **Mesh-secrets out-of-band guard** — best-effort regex sniff for credential-shaped content (PyPI tokens, Anthropic keys, GitHub tokens, JWTs, AWS keys). Hits raise `MeshSecretLeakError` BEFORE the POST. Operator escape hatch via `skip_secret_check=True` for legitimate prose mentioning credential shapes. CLAUDE.md "Mesh secrets out-of-band only" is non-negotiable; the guard catches obvious cases.
+2. **Mesh-secrets out-of-band guard** — best-effort regex sniff for credential-shaped content (PyPI tokens, Anthropic keys, GitHub tokens, JWTs, AWS keys). Hits raise `MeshSecretLeakError` BEFORE the POST. Operator escape hatch via `skip_secret_check=True` for legitimate prose mentioning credential shapes. Treat "mesh secrets out-of-band only" as non-negotiable; the guard catches obvious cases.
 
-## Spec
-
-The canonical PLAN with sequencing, falsifiability gates, and design rationale lives at:
-
-→ [hedge-fund-mcp / research/swarph_cli/PLAN.md](https://github.com/darw007d/hedge-fund-mcp/blob/main/research/swarph_cli/PLAN.md)
 
 ## Phase rollout
 
