@@ -30,7 +30,7 @@ SKUNKWORKS_CAPABILITY = {
     "invocation": {
         "channel": "MESH_TOOL",
         "protocol": "LAUNCH_SKUNKWORKS: <seed>",
-        "host": "gemini-researcher",
+        "host": "<hosting-cell>",
     },
     "note": (
         "Dory's session-isolated Skunkworks daemon — the indexer's reference "
