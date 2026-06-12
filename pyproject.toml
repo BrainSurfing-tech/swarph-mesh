@@ -44,7 +44,6 @@ Homepage = "https://github.com/darw007d/swarph-mesh"
 Source = "https://github.com/darw007d/swarph-mesh"
 CLI = "https://github.com/darw007d/swarph-cli"
 Plugin = "https://github.com/darw007d/swarph-meshlm"
-Spec = "https://github.com/darw007d/hedge-fund-mcp/blob/main/research/swarph_cli/PLAN.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "pytest-cov>=4.0"]

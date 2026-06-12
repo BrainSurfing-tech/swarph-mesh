@@ -15,7 +15,7 @@ the v0.3.x architecture:
 * ``swarph-meshlm`` (separate)     — Simon Willison ``llm`` plugin.
 
 See the canonical PLAN at:
-``https://github.com/darw007d/hedge-fund-mcp/blob/main/research/swarph_cli/PLAN.md``
+the swarph-cli design notes
 
 v0.1.0 — Phase 1 substrate. Ships:
 

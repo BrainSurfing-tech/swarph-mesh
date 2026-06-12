@@ -3,7 +3,7 @@
 Per PLAN.md §8, every ``SwarphCall`` writes one row of attribution
 data after a successful adapter call. The package ships writer
 implementations for common cases (no-op, JSONL file); production
-consumers (OMEGA droplet) wire up a TSDB writer at module load.
+consumers wire up a TSDB writer at module load.
 
 The writer is a Protocol — consumers can plug in any callable
 matching the shape. Default in v0.1.0: ``FileAttributionWriter``
@@ -26,9 +26,9 @@ from typing import Any, Optional, Protocol, runtime_checkable
 class AttributionEvent:
     """One row of cost / latency / token attribution for an LLM call.
 
-    Fields match the shape consumed by the OMEGA ``token_usage`` /
+    Fields match the shape consumed by a ``token_usage`` /
     ``subscription_usage`` TimescaleDB hypertables (see
-    hedge-fund-mcp ``database/init_timescale.sql``). External
+    a time-series store). External
     consumers can map to their own schema in their writer impl.
     """
 

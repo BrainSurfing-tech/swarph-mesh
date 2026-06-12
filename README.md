@@ -56,7 +56,7 @@ Public surface:
 - **`LLMAdapter.list_models()`** (NEW v0.6.0) — Protocol-level method. Each adapter delegates to `discovery.list_models(provider=self.name)`. Breaking change: external implementations of `LLMAdapter` from v0.5.x must implement this method to satisfy the runtime-checkable Protocol.
 - JSON-mode harness — retry-once with [USER]-turn feedback (per swarph-shared invariant)
 - Attribution: `FileAttributionWriter` default; `set_default_writer()` for production TSDB consumers
-- `MeshClient` (v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in `lab_loop_drain.py` / `mesh_inbox_watcher.py` / `science_claude_inbox_drain.py`
+- `MeshClient` (v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in inbox-drain scripts
 
 Tests: **253+ passing** (250 offline + live gates: 1 claude subscription + 1 deepseek + 2 mesh + 1 gemini + 1 openai + 1 grok + 3 discovery against live AIMLAPI; live tests gated on env/creds or `SWARPH_SKIP_NETWORK=1`).
 
@@ -78,23 +78,18 @@ from swarph_mesh import MeshClient
 import os
 
 # Phase 3 — mesh-gateway DM coordination
-async with MeshClient(node="lab-ovh") as client:  # token from MESH_GATEWAY_TOKEN env
+async with MeshClient(node="my-cell") as client:  # token from MESH_GATEWAY_TOKEN env
     peers = await client.list_peers()
     msgs = await client.fetch(unread_only=True)
-    sent = await client.send(to="droplet", kind="fyi", content="hello")
+    sent = await client.send(to="peer-cell", kind="fyi", content="hello")
     await client.mark_read(msgs[0].id)
 ```
 
 `MeshClient.send()` enforces two structural invariants:
 
 1. **Recipient name validation** via `swarph_shared.validate_node_name` — closes the framing-contagion class (Vector A peer-onboarding chatter, Vector B human-prompt shorthand).
-2. **Mesh-secrets out-of-band guard** — best-effort regex sniff for credential-shaped content (PyPI tokens, Anthropic keys, GitHub tokens, JWTs, AWS keys). Hits raise `MeshSecretLeakError` BEFORE the POST. Operator escape hatch via `skip_secret_check=True` for legitimate prose mentioning credential shapes. CLAUDE.md "Mesh secrets out-of-band only" is non-negotiable; the guard catches obvious cases.
+2. **Mesh-secrets out-of-band guard** — best-effort regex sniff for credential-shaped content (PyPI tokens, Anthropic keys, GitHub tokens, JWTs, AWS keys). Hits raise `MeshSecretLeakError` BEFORE the POST. Operator escape hatch via `skip_secret_check=True` for legitimate prose mentioning credential shapes. Treat "mesh secrets out-of-band only" as non-negotiable; the guard catches obvious cases.
 
-## Spec
-
-The canonical PLAN with sequencing, falsifiability gates, and design rationale lives at:
-
-→ [hedge-fund-mcp / research/swarph_cli/PLAN.md](https://github.com/darw007d/hedge-fund-mcp/blob/main/research/swarph_cli/PLAN.md)
 
 ## Phase rollout
 
