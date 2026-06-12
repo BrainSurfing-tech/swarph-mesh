@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/swarph-mesh.svg)](https://pypi.org/project/swarph-mesh/)
 [![Python](https://img.shields.io/pypi/pyversions/swarph-mesh.svg)](https://pypi.org/project/swarph-mesh/)
 [![Docs](https://img.shields.io/badge/docs-darw007d.github.io-blue)](https://darw007d.github.io/swarph-mesh/)
-[![codecov](https://codecov.io/gh/darw007d/swarph-mesh/graph/badge.svg)](https://codecov.io/gh/darw007d/swarph-mesh)
+[![codecov](https://codecov.io/gh/BrainSurfing-tech/swarph-mesh/graph/badge.svg)](https://codecov.io/gh/BrainSurfing-tech/swarph-mesh)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Model-agnostic Python substrate for the swarph-mesh ecosystem. Pure library, no CLI.
@@ -14,11 +14,11 @@ This is one of three repos in the v0.3.x architecture:
 
 | Repo | Role |
 |---|---|
-| [`swarph-mesh`](https://github.com/darw007d/swarph-mesh) | This package — typed Protocol + adapters + SwarphCall + MeshClient |
-| [`swarph-cli`](https://github.com/darw007d/swarph-cli) | The `swarph` binary. Thin client over `swarph-mesh` |
-| [`swarph-meshlm`](https://github.com/darw007d/swarph-meshlm) | Simon Willison `llm` plugin. Same primitives wired into `llm`'s plugin host |
+| [`swarph-mesh`](https://github.com/BrainSurfing-tech/swarph-mesh) | This package — typed Protocol + adapters + SwarphCall + MeshClient |
+| [`swarph-cli`](https://github.com/BrainSurfing-tech/swarph-cli) | The `swarph` binary. Thin client over `swarph-mesh` |
+| [`swarph-meshlm`](https://github.com/BrainSurfing-tech/swarph-meshlm) | Simon Willison `llm` plugin. Same primitives wired into `llm`'s plugin host |
 
-All three sit on top of [`swarph-shared`](https://github.com/darw007d/swarph-shared) which provides the cross-billing-path attribution + subprocess env scrubbing + JSON-mode harness + peer-name registry primitives.
+All three sit on top of [`swarph-shared`](https://github.com/BrainSurfing-tech/swarph-shared) which provides the cross-billing-path attribution + subprocess env scrubbing + JSON-mode harness + peer-name registry primitives.
 
 ## Status
 
@@ -109,7 +109,7 @@ async with MeshClient(node="my-cell") as client:  # token from MESH_GATEWAY_TOKE
 ## Install (dev)
 
 ```bash
-git clone https://github.com/darw007d/swarph-mesh
+git clone https://github.com/BrainSurfing-tech/swarph-mesh
 cd swarph-mesh
 python -m venv venv && source venv/bin/activate
 pip install -e ".[dev]"

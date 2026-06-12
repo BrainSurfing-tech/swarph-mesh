@@ -13,7 +13,7 @@
 
 ## What this documentation covers
 
-This site auto-renders the public contract surface of `swarph-mesh`. The contract is enumerated in [`DEPRECATIONS.md`](https://github.com/darw007d/swarph-mesh/blob/main/DEPRECATIONS.md) — Tier 1 / Tier 2 / Tier 3.
+This site auto-renders the public contract surface of `swarph-mesh`. The contract is enumerated in [`DEPRECATIONS.md`](https://github.com/BrainSurfing-tech/swarph-mesh/blob/main/DEPRECATIONS.md) — Tier 1 / Tier 2 / Tier 3.
 
 - **Tier 1** — third-party-node-implementer-facing primitives. Highest stability. `LLMAdapter` Protocol, `ChatMessage`, `LLMResponse`, `MeshClient`, `MeshMessage`, discovery primitives. Changes here trigger the deprecation cycle in `DEPRECATIONS.md`.
 - **Tier 2** — consumer-facing-but-internal-friendly. `SwarphCall`, `AttributionWriter`, `HookSet`, normalization helpers.
@@ -26,9 +26,9 @@ If a symbol is not visible in these auto-generated pages, it is not part of the 
 
 Three documents anchor the contract surface:
 
-- [`SECURITY.md`](https://github.com/darw007d/swarph-mesh/blob/main/SECURITY.md) — 9 in-scope vulnerability classes; "Protocol contract violation" is reportable as a security event.
-- [`DEPRECATIONS.md`](https://github.com/darw007d/swarph-mesh/blob/main/DEPRECATIONS.md) — what counts as breaking, deprecation cycle requirements, mypy-strict ratchet schedule.
-- [`CHANGELOG.md`](https://github.com/darw007d/swarph-mesh/blob/main/CHANGELOG.md) — full per-release history.
+- [`SECURITY.md`](https://github.com/BrainSurfing-tech/swarph-mesh/blob/main/SECURITY.md) — 9 in-scope vulnerability classes; "Protocol contract violation" is reportable as a security event.
+- [`DEPRECATIONS.md`](https://github.com/BrainSurfing-tech/swarph-mesh/blob/main/DEPRECATIONS.md) — what counts as breaking, deprecation cycle requirements, mypy-strict ratchet schedule.
+- [`CHANGELOG.md`](https://github.com/BrainSurfing-tech/swarph-mesh/blob/main/CHANGELOG.md) — full per-release history.
 
 ```{toctree}
 :maxdepth: 2

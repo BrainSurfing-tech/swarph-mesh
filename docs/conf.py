@@ -98,7 +98,7 @@ html_theme_options = {
     "footer_icons": [
         {
             "name": "GitHub",
-            "url": "https://github.com/darw007d/swarph-mesh",
+            "url": "https://github.com/BrainSurfing-tech/swarph-mesh",
             "html": "",
             "class": "fa-brands fa-github",
         },

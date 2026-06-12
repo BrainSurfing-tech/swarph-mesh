@@ -40,10 +40,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/darw007d/swarph-mesh"
-Source = "https://github.com/darw007d/swarph-mesh"
-CLI = "https://github.com/darw007d/swarph-cli"
-Plugin = "https://github.com/darw007d/swarph-meshlm"
+Homepage = "https://github.com/BrainSurfing-tech/swarph-mesh"
+Source = "https://github.com/BrainSurfing-tech/swarph-mesh"
+CLI = "https://github.com/BrainSurfing-tech/swarph-cli"
+Plugin = "https://github.com/BrainSurfing-tech/swarph-meshlm"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "pytest-cov>=4.0"]
@@ -58,8 +58,8 @@ docs = [
 ]
 
 # NOTE: this repo is the substrate Python package only — pure library.
-# The `swarph` CLI binary lives in `darw007d/swarph-cli`; the Simon
-# Willison `llm` plugin in `darw007d/swarph-meshlm`. All three import
+# The `swarph` CLI binary lives in `BrainSurfing-tech/swarph-cli`; the Simon
+# Willison `llm` plugin in `BrainSurfing-tech/swarph-meshlm`. All three import
 # from this package as the bottom layer.
 
 [tool.setuptools.packages.find]
