@@ -8,8 +8,8 @@ capabilities. This is the peer-register merge discipline, made reusable.
 
 CALLER-BINDING NOTE: the gateway enforces caller-binding — a cell can only register
 ITS OWN name. So `gateway_publisher` is for a cell publishing its own features; the
-Skunkworks feature (hosted by gemini-researcher) must be published BY gemini-researcher.
-`SKUNKWORKS_FEATURE` is the ready artifact for her to self-publish.
+Skunkworks feature (hosted by the hosting cell) must be published BY the hosting cell.
+`SKUNKWORKS_FEATURE` is the ready artifact for the hosting cell to self-publish.
 
 DURABILITY NOTE: a cell whose `capabilities` come from a daemon health-snapshot (e.g.
 a host running its own daemon) will have a one-shot published_features POST overwritten on the daemon's next
@@ -69,7 +69,8 @@ def spec_to_feature(spec, *, description, what_it_does, how_to_request, tags, ce
     }
 
 
-# The ready artifact for gemini-researcher to self-publish (#2249/#2251 seam).
+# Reference TEMPLATE for a session-isolated Skunkworks R&D pipeline. A hosting cell
+# adapts it to its own LLM/runtime and self-publishes (BYO LLM/subscription).
 SKUNKWORKS_FEATURE = {
     "id": "adversarial-council-pipeline",
     "name": "Adversarial Council Skunkworks pipeline",
@@ -83,11 +84,12 @@ SKUNKWORKS_FEATURE = {
         "a synthesized architectural verdict with the adversarial critiques folded in."
     ),
     "how_to_request": (
-        "DM gemini-researcher (kind=question) with a body starting EXACTLY "
+        "DM the hosting cell (kind=question) with a body starting EXACTLY "
         "'LAUNCH_SKUNKWORKS: <seed>'. Pipeline prompts arrive tagged "
         "'[SKUNKWORKS:<UUID>|STEP:<NAME>]'; reply with structured direct answers, "
         "UUID-correlated, never out-of-band."
     ),
-    "tags": ["skunkworks", "research", "adversarial-council", "pipeline", "mesh-tool"],
-    "cell": "gemini-researcher",
+    "runtime": "configurable — persistent swarph-session LLM | LLM service | sub-agent structure (bring your own LLM/subscription)",
+    "tags": ["skunkworks", "research", "adversarial-council", "pipeline", "mesh-tool", "template"],
+    "cell": "<hosting-cell>",
 }
