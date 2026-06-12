@@ -1,7 +1,7 @@
 """DeepSeek adapter — OpenAI-compatible API at ``https://api.deepseek.com``.
 
-Per PLAN.md §3 ship-order #2: "DeepSeek adapter — already have
-``/home/ubuntu/deepseek/deepseek.py`` tool-shape; carve the chat path
+Per PLAN.md §3 ship-order #2: "DeepSeek adapter — already have a
+legacy tool-shape; carve the chat path
 into adapter shape. ~50 LOC."
 
 DeepSeek's API is OpenAI-protocol-compatible — we use the official
@@ -163,8 +163,8 @@ class DeepSeekAdapter:
         base_url: str = DEEPSEEK_BASE_URL,
     ):
         """``api_key`` falls back to ``DEEPSEEK_API_KEY`` env, then
-        ``/home/ubuntu/deepseek/.env`` (matching the legacy tool's
-        config-file convention so existing setups keep working).
+        a legacy env file (``DEEPSEEK_LEGACY_ENV_PATH``, matching the
+        legacy tool's config-file convention so existing setups keep working).
         ``base_url`` defaults to https://api.deepseek.com but can be
         overridden for self-hosted OpenAI-compat endpoints.
         """
@@ -178,7 +178,7 @@ class DeepSeekAdapter:
         if not self._api_key:
             raise AdapterError(
                 "DeepSeekAdapter requires DEEPSEEK_API_KEY env, "
-                "/home/ubuntu/deepseek/.env, or api_key kwarg"
+                "a legacy env file (DEEPSEEK_LEGACY_ENV_PATH), or api_key kwarg"
             )
         try:
             from openai import OpenAI
@@ -311,24 +311,24 @@ class DeepSeekAdapter:
 
 def _resolve_api_key() -> Optional[str]:
     """Resolve DEEPSEEK_API_KEY from env, then from a legacy ``.env``
-    file (defaults to ``/home/ubuntu/deepseek/.env`` for lab-OVH backwards
+    file (defaults to ``~/.deepseek/.env`` for backwards
     compatibility; override via ``DEEPSEEK_LEGACY_ENV_PATH`` env var).
 
-    v0.5.1 fix (issue #6): the hardcoded ``/home/ubuntu/deepseek/.env``
-    path bit non-lab-OVH consumers — droplet, GPU box, any other host
+    v0.5.1 fix (issue #6): a hardcoded absolute legacy path
+    bit consumers — any host
     that pip-installs ``swarph-mesh`` and doesn't have that exact path
     sees ``AdapterError`` on first invoke even when DEEPSEEK_API_KEY is
     set elsewhere. Order: ``DEEPSEEK_API_KEY`` env → ``$DEEPSEEK_LEGACY_ENV_PATH``
-    file → ``/home/ubuntu/deepseek/.env`` file (legacy default) → ``None``.
+    file → ``~/.deepseek/.env`` file (legacy default) → ``None``.
 
     Returns ``None`` if no key found; the adapter raises a friendly
     AdapterError on first invoke when ``None``.
     """
     if os.environ.get("DEEPSEEK_API_KEY"):
         return os.environ["DEEPSEEK_API_KEY"]
-    # Per-host override; falls back to lab-OVH legacy default.
+    # Per-host override; falls back to a legacy default.
     legacy_env = os.environ.get(
-        "DEEPSEEK_LEGACY_ENV_PATH", "/home/ubuntu/deepseek/.env"
+        "DEEPSEEK_LEGACY_ENV_PATH", os.path.expanduser("~/.deepseek/.env")
     )
     try:
         from pathlib import Path

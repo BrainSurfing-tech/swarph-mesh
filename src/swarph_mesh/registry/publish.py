@@ -12,7 +12,7 @@ Skunkworks feature (hosted by gemini-researcher) must be published BY gemini-res
 `SKUNKWORKS_FEATURE` is the ready artifact for her to self-publish.
 
 DURABILITY NOTE: a cell whose `capabilities` come from a daemon health-snapshot (e.g.
-lab-ovh) will have a one-shot published_features POST overwritten on the daemon's next
+a host running its own daemon) will have a one-shot published_features POST overwritten on the daemon's next
 registration. Durable publishing means injecting `published_features` into the cell's
 registration source (the refresh-job / snapshot pipeline) — a deploy step, commander-gated.
 """
