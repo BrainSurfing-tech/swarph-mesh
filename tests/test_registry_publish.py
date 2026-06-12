@@ -58,9 +58,11 @@ def test_publish_is_idempotent_by_id():
 
 def test_skunkworks_feature_shape():
     f = SKUNKWORKS_FEATURE
-    assert f["cell"] == "gemini-researcher"                     # caller-binding: her cell
+    assert f["cell"] == "<hosting-cell>"                        # generic template: hosting cell self-publishes
     assert f["how_to_request"].count("LAUNCH_SKUNKWORKS") >= 1
     assert "skunkworks" in f["tags"]
+    assert "template" in f["tags"]
+    assert "runtime" in f
 
 
 def test_spec_to_feature_maps_adapterspec():

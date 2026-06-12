@@ -22,7 +22,7 @@ from swarph_mesh.registry.spec import AdapterSpec
 # The FIRST real external capability the indexer is meant to hold: Dory's
 # session-isolated Skunkworks pipeline — a mesh-native MESH_TOOL (NOT an
 # AdapterSpec, but a capability the indexer surfaces). Reference capability
-# for the indexer (#2249 / #2251).
+# for the indexer.
 SKUNKWORKS_CAPABILITY = {
     "name": "adversarial-council-pipeline",
     "kind": "mesh_tool",
@@ -34,7 +34,7 @@ SKUNKWORKS_CAPABILITY = {
     },
     "note": (
         "Dory's session-isolated Skunkworks daemon — the indexer's reference "
-        "capability (#2249/#2251)."
+        "capability."
     ),
 }
 
