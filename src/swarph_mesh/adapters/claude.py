@@ -10,7 +10,7 @@ Why subprocess instead of the Anthropic SDK:
 The Anthropic SDK uses ``ANTHROPIC_API_KEY`` and bills per-token through
 the metered API. ``claude -p`` (the CLI binary) reads
 ``~/.claude/.credentials.json`` and bills through the user's claude.ai
-subscription — flat-rate, not metered. For Council judges, lab-orchestrator
+subscription — flat-rate, not metered. For LLM-judge calls, host
 delegate calls, or any context where subscription billing is the right
 choice, we wrap the CLI as a subprocess.
 
@@ -72,7 +72,7 @@ def _resolve_claude_bin() -> str:
 
     Per drop PR #8 review carry-forward (b) issue #9 #2: $HOME/.local
     takes precedence over /usr/local. Right default for user-installed
-    binaries-take-precedence-over-system but lab-orchestrator + droplet
+    binaries-take-precedence-over-system but some host
     contexts may have system installs that should win. **Set ``CLAUDE_BIN``
     env explicitly if both user + system installs are present and you
     want the system one** — the env override beats both filesystem paths
@@ -287,7 +287,7 @@ class ClaudeAdapter:
 
         # Scrubbed env keeps ANTHROPIC_API_KEY (and the *_API_KEY suffix
         # forward-compat denylist) out of the subprocess. IS_SANDBOX=1
-        # follows the OMEGA opus_subscription convention so claude
+        # follows the standard opus_subscription convention so claude
         # treats the call as headless / non-interactive.
         env = {**scrub_env_for_subprocess(), "IS_SANDBOX": "1"}
 

@@ -14,7 +14,7 @@ OS sandbox** that whitelists only agy's binary + its own runtime dir and drops
 everything else. Verified: a read outside the whitelist is BLOCKED (a decoy file
 in $HOME was unreachable), while the LLM call still succeeds.
 
-Sandbox profile (AI²-reviewed, droplet DMs #1388/#1389):
+Sandbox profile (AI²-reviewed):
   firejail --quiet
     --whitelist=$HOME/.gemini/antigravity-cli   # agy auth + runtime dir
     --whitelist=$HOME/.local/bin/agy            # the binary (self-contained Go)
@@ -63,7 +63,7 @@ DEFAULT_MODEL = "gemini-3.5-flash"
 DEFAULT_TIMEOUT_SECONDS = int(os.environ.get("ANTIGRAVITY_TIMEOUT", "180"))
 # scrub_env strips *_API_KEY by suffix; these billing-relevant vars do NOT end in
 # _API_KEY and must be stripped explicitly so agy can't fall back to metered
-# Vertex/GCP billing (the GeminiCLIAdapter scrub-gap, droplet DM #1386/#1389).
+# Vertex/GCP billing (the GeminiCLIAdapter scrub-gap).
 _EXTRA_SCRUB = (
     "GOOGLE_APPLICATION_CREDENTIALS",
     "GOOGLE_CLOUD_PROJECT",
@@ -195,7 +195,7 @@ class AntigravityAdapter:
             )
         except subprocess.TimeoutExpired as exc:
             timed_out = True
-            # generous stderr budget on the failure path (droplet DM #1391):
+            # generous stderr budget on the failure path:
             # firejail denial patterns ("Reading blacklist"/"Permission denied"/
             # "Operation not permitted") may sit far from the tail.
             to_err = (exc.stderr or b"")
