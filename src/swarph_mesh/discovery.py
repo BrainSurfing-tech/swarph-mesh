@@ -214,7 +214,7 @@ def _fetch_per_provider_fallback(provider: Optional[str]) -> list[ModelInfo]:
             )
     if "deepseek" in targets:
         # Reuse DeepSeekAdapter's resolution logic for the legacy
-        # /home/ubuntu/deepseek/.env file fallback.
+        # env file fallback (DEEPSEEK_LEGACY_ENV_PATH).
         try:
             from swarph_mesh.adapters.deepseek import _resolve_api_key
 
@@ -887,7 +887,7 @@ def fetch_deepseek_balance(
     """Hit ``GET /user/balance`` on DeepSeek for current credit state.
 
     ``api_key`` resolves from arg → ``$DEEPSEEK_API_KEY`` env →
-    ``/home/ubuntu/deepseek/.env`` legacy fallback (matches
+    a legacy env file (``DEEPSEEK_LEGACY_ENV_PATH``) fallback (matches
     ``DeepSeekAdapter._resolve_api_key`` shape). The Anthropic-protocol
     endpoint at ``/anthropic/v1/messages`` is documented in the adapter
     module docstring but not used by this balance primitive.

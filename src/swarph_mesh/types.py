@@ -5,7 +5,7 @@ are model-agnostic; the package keeps the substrate clean and lets each
 adapter wrap its own provider SDK in 50-100 LOC.
 
 The shape here is the contract Phase 1+ adapters target. Stable surface
-so downstream callers (omega-boss, Council, future swarph CLI) can write
+so downstream callers can write
 against the Protocol without coupling to a specific provider.
 """
 

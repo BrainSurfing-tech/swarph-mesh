@@ -5,7 +5,7 @@ production-tested Flex tier handling, context caching (Pro tier),
 and usage-metadata extraction in a clean abstraction. Re-implementing
 those features in this adapter would duplicate ~200 LOC for no
 substrate benefit. The bridge is a stable v0.1.5 PyPI package that
-both lab and droplet have run in production for weeks.
+multiple hosts have run in production for weeks.
 
 Cost calculation uses Google's published per-Mtok pricing as of
 2026-04-29; update the ``PRICING`` table when Google revises rates.
@@ -107,7 +107,7 @@ class GeminiAdapter:
         flex: bool = True,
     ):
         """``api_key`` falls back to ``GEMINI_API_KEY`` env. ``flex``
-        defaults to True per OMEGA's standard production config —
+        defaults to True per a standard production config —
         Flex tier costs 50% less for latency-tolerant workloads."""
         self._api_key = api_key or os.environ.get("GEMINI_API_KEY")
         self._flex = flex

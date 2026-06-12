@@ -3,8 +3,8 @@ PLAN.md §5.
 
 Replaces the hand-rolled curl-based code in:
 
-* ``lab-orchestrator/scripts/lab_loop_drain.py``
-* assorted ad-hoc curl invocations in CLAUDE.md / session ritual
+* an inbox-drain script
+* assorted ad-hoc curl invocations in session ritual
 
 with a single typed surface so cross-Claude DM coordination doesn't
 require re-discovering the gateway shape from scratch every time.

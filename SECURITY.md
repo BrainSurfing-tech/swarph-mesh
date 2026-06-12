@@ -42,7 +42,7 @@ A vulnerability is **out of scope** if:
 
 Reporting channels:
 
-1. **Email**: `pierresamson@gmail.com` with subject prefix `[swarph-mesh security]`. PGP key available on request.
+1. **Email**: `info@brainsurfing.tech` with subject prefix `[swarph-mesh security]`. PGP key available on request.
 2. **GitHub Security Advisory** (preferred for repo-scoped findings): https://github.com/darw007d/swarph-mesh/security/advisories/new — private to the maintainer + collaborators until coordinated disclosure.
 
 Please include:
