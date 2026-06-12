@@ -56,7 +56,7 @@ Public surface:
 - **`LLMAdapter.list_models()`** (NEW v0.6.0) — Protocol-level method. Each adapter delegates to `discovery.list_models(provider=self.name)`. Breaking change: external implementations of `LLMAdapter` from v0.5.x must implement this method to satisfy the runtime-checkable Protocol.
 - JSON-mode harness — retry-once with [USER]-turn feedback (per swarph-shared invariant)
 - Attribution: `FileAttributionWriter` default; `set_default_writer()` for production TSDB consumers
-- `MeshClient` (v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in `lab_loop_drain.py` / `mesh_inbox_watcher.py` / `science_claude_inbox_drain.py`
+- `MeshClient` (v0.2.0) — async wrapper around mesh-gateway HTTP API; replaces hand-rolled curl in inbox-drain scripts
 
 Tests: **253+ passing** (250 offline + live gates: 1 claude subscription + 1 deepseek + 2 mesh + 1 gemini + 1 openai + 1 grok + 3 discovery against live AIMLAPI; live tests gated on env/creds or `SWARPH_SKIP_NETWORK=1`).
 

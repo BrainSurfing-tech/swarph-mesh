@@ -1,6 +1,6 @@
 """Typed dataclasses for mesh-gateway responses.
 
-Shape derived from the live gateway at http://lab-ovh:8788 (2026-05-08).
+Shape derived from the live gateway (2026-05-08).
 Stable enough to type against; Phase 3+ migrations on the gateway side
 will add fields rather than rename existing ones (per the swarph
 conventions captured in the mesh design notes).

@@ -11,12 +11,12 @@ require re-discovering the gateway shape from scratch every time.
 
 Public surface:
 
-  client = MeshClient(node="lab-ovh", token=os.environ["MESH_GATEWAY_TOKEN"])
+  client = MeshClient(node="my-cell", token=os.environ["MESH_GATEWAY_TOKEN"])
   peers = await client.list_peers()
   msgs = await client.fetch(unread_only=True)
-  sent = await client.send(to="droplet", kind="fyi", content="...")
+  sent = await client.send(to="other-cell", kind="fyi", content="...")
   await client.mark_read(msg_id=123)
-  await client.register(url="http://lab-ovh:8787", capabilities={...})
+  await client.register(url="http://localhost:8787", capabilities={...})
 
 Two structural invariants enforced:
 
@@ -58,7 +58,7 @@ from swarph_mesh.exceptions import SwarphMeshError
 from swarph_mesh.mesh_types import MeshMessage, MeshPeer
 
 
-DEFAULT_GATEWAY_URL = "http://lab-ovh:8788"
+DEFAULT_GATEWAY_URL = "http://localhost:8788"
 GATEWAY_TOKEN_ENV = "MESH_GATEWAY_TOKEN"
 DEFAULT_TIMEOUT_SECONDS = 10.0
 
@@ -173,8 +173,8 @@ class MeshClient:
 
     Use as an async context manager when you want explicit close:
 
-        async with MeshClient(node="lab-ovh") as client:
-            await client.send(to="droplet", kind="fyi", content="...")
+        async with MeshClient(node="my-cell") as client:
+            await client.send(to="other-cell", kind="fyi", content="...")
 
     Or instantiate normally + call ``aclose()`` when done.
     """
@@ -189,7 +189,7 @@ class MeshClient:
         validate_self_name: bool = True,
     ):
         """``token`` falls back to ``MESH_GATEWAY_TOKEN`` env. ``gateway_url``
-        falls back to ``MESH_GATEWAY_URL`` env, then ``http://lab-ovh:8788``.
+        falls back to ``MESH_GATEWAY_URL`` env, then ``http://localhost:8788``.
 
         Set ``validate_self_name=False`` for test fixtures that need to
         instantiate a client with a mock peer name. Production callers
