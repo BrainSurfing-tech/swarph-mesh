@@ -79,6 +79,13 @@ def get_adapter(provider: str, *, api_key: Optional[str] = None) -> LLMAdapter:
         _REGISTRY[provider] = adapter
         return adapter
 
+    if provider == "grok-cli":
+        from swarph_mesh.adapters.grok_cli import GrokCLIAdapter
+
+        adapter = GrokCLIAdapter(api_key=api_key)
+        _REGISTRY[provider] = adapter
+        return adapter
+
     raise UnknownProvider(
         f"no adapter registered for provider {provider!r}. "
         "v0.5.0 ships all five Phase 4 adapters: gemini + deepseek + claude + "
