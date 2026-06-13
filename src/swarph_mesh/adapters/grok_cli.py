@@ -34,9 +34,12 @@ call needs no fan-out, and it trims the agentic surface (a
 seals the fs, this caps the rest).
 
 Residual (accepted v1, same as Antigravity): network egress stays open — the LLM
-call needs outbound 443, so a malicious tool *could* POST to an arbitrary host.
-fs is sealed (the bigger hole). Documented residual; revisit if an attack
-pattern surfaces.
+call needs outbound 443. The fs is sealed against everything EXCEPT grok's own
+``~/.grok/auth.json`` (irreducibly in-sandbox — grok needs it to authenticate),
+so the live exfil lever is an injected tool reading auth.json + POSTing it over
+the open 443. That is the same architecturally-irreducible residual as the agy
+lane (egress allowlisting would close it but is a mesh-wide feature-add, absent
+here). Documented; revisit if an attack pattern surfaces.
 
 Prompt delivery: grok's NATIVE ``--prompt-file`` (single-turn: prints the
 response to stdout and exits) — no argv length cap (unlike agy's ~4128). The
@@ -87,8 +90,19 @@ _EXTRA_SCRUB = (
     "XAI_API_KEY",
     "GROK_API_KEY",
     "GROK_CODE_XAI_API_KEY",
+    # Endpoint-redirect class (drop seat-A PR #31 MEDIUM): these do NOT end in
+    # _API_KEY/_AUTH_TOKEN so the suffix denylist misses them. If grok honors
+    # any, a host env var could redirect the agentic grok's API calls to an
+    # attacker endpoint (prompt + token exfil) or off the $0 path. Strip them.
+    "XAI_API_BASE",
+    "XAI_API_HOST",
+    "GROK_API_HOST",
 )
-_DEFAULT_PROMPT_DIR = str(Path.home() / ".grok" / "swarph-prompts")
+# The prompt file lives OUTSIDE ~/.grok (drop seat-A PR #31 HIGH): a uuid-named
+# file under a predictable ~/.grok/swarph-prompts/ written by the HOST before
+# firejail spawns is world-readable under the box umask (0664) and outside the
+# sandbox's reach. Use a dedicated mesh-owned dir, created 0700, file 0600.
+_DEFAULT_PROMPT_DIR = str(Path.home() / ".swarph" / "grok-cli-prompts")
 _AUDIT_LOG = os.environ.get(
     "GROK_CLI_AUDIT_LOG",
     str(Path.home() / ".grok" / "swarph_audit.jsonl"),
@@ -100,7 +114,15 @@ def _resolve_grok_bin() -> str:
     install at ~/.local/bin/grok, then PATH. NEVER trust PATH order alone — a
     stale @vibe-kit npm install previously shadowed it at /usr/local/bin/grok."""
     if os.environ.get("GROK_BIN"):
-        return os.environ["GROK_BIN"]
+        override = os.environ["GROK_BIN"]
+        # Must be absolute — a relative GROK_BIN re-opens the @vibe-kit PATH
+        # shadowing the absolute-bin resolution exists to prevent (drop NOTE).
+        if not os.path.isabs(override):
+            raise AdapterError(
+                f"GROK_BIN must be an absolute path (got {override!r}); a relative "
+                "value re-opens PATH-shadowing by a stale grok install."
+            )
+        return override
     home_local = Path.home() / ".local" / "bin" / "grok"
     if home_local.exists():
         return str(home_local)
@@ -145,6 +167,16 @@ def _firejail_argv(firejail_bin: str, grok_bin: str, prompt_file: str) -> list[s
     return [
         firejail_bin, "--quiet",
         f"--whitelist={home}/.grok",
+        # --blacklist ~/.grok/memory (drop seat-A PR #31 MEDIUM): grok needs its
+        # ~/.grok runtime tree writable (sessions/leader.sock/upload_queue — a
+        # blanket blacklist of those breaks startup, verified), but the global
+        # cross-session MEMORY store is the contamination vector: an injected
+        # always-approve tool could open() it directly, bypassing the --no-memory
+        # FEATURE flag. Sealing the memory dir at the fs layer is the
+        # defense-in-depth --no-memory alone can't give. (sessions/ stays
+        # reachable — mesh's own transcripts; full separate-HOME isolation is a
+        # documented follow-up.)
+        f"--blacklist={home}/.grok/memory",
         f"--whitelist={grok_bin}",
         f"--whitelist={home}/.local/bin",
         f"--whitelist={prompt_dir}",
@@ -223,13 +255,25 @@ class GrokCLIAdapter:
             self._warned_model = True
 
         prompt_text = _build_prompt(messages, system_prompt)
-        os.makedirs(self._prompt_dir, exist_ok=True)
+        # The prompt carries the assembled system prompt + every message body
+        # (internal mesh state, signal directives, possibly relayed creds) — the
+        # exact content the sandbox exists to contain. It is written by the HOST
+        # before firejail spawns, so dir+file MODE is the only protection: 0700
+        # dir + 0600 file so it is never group/world-readable (drop seat-A HIGH).
+        os.makedirs(self._prompt_dir, mode=0o700, exist_ok=True)
+        try:
+            os.chmod(self._prompt_dir, 0o700)  # tighten even if pre-existing under a loose umask
+        except OSError:
+            pass
         prompt_file = os.path.join(self._prompt_dir, f"swarph-{uuid.uuid4().hex}.md")
         prompt_sha8 = hashlib.sha256(prompt_text.encode()).hexdigest()[:8]
 
         start = time.monotonic()
         try:
-            with open(prompt_file, "w", encoding="utf-8") as fh:
+            # os.open with 0600 + O_EXCL: the file is never world/group-readable
+            # for any instant (vs open()+chmod which leaves a umask-mode window).
+            fd = os.open(prompt_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 fh.write(prompt_text)
             argv = _firejail_argv(self._firejail_bin, self._grok_bin, prompt_file)
             env = _scrubbed_env()
@@ -243,7 +287,7 @@ class GrokCLIAdapter:
                 to_err = to_err.decode(errors="replace") if isinstance(to_err, bytes) else to_err
                 _audit({"ts": time.time(), "prompt_sha8": prompt_sha8,
                         "timed_out": True, "duration_s": round(time.monotonic() - start, 2),
-                        "stderr_tail": to_err[-2048:]})
+                        "stderr_tail": to_err[-512:]})
                 raise AdapterError(
                     f"GrokCLIAdapter timed out after {self._timeout_seconds}s "
                     "(firejail+grok). Check grok auth (~/.grok/auth.json) + firejail."
@@ -262,7 +306,11 @@ class GrokCLIAdapter:
         duration_s = time.monotonic() - start
 
         text = (proc.stdout or "").strip()
-        stderr_tail = (proc.stderr or "")[-2048:] if proc.returncode != 0 else ""
+        # Bound the stderr tail tightly (drop seat-A LOW): grok stderr can carry
+        # response/content fragments, and this string lands in the PERSISTENT
+        # audit log AND the raised AdapterError. 512B is enough for a firejail
+        # denial signature without spilling a large content blob.
+        stderr_tail = (proc.stderr or "")[-512:] if proc.returncode != 0 else ""
         _audit({
             "ts": time.time(), "prompt_sha8": prompt_sha8,
             "exit": proc.returncode, "duration_s": round(duration_s, 2),

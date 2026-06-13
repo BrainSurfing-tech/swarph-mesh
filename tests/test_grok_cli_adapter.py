@@ -46,14 +46,23 @@ def test_api_key_kwarg_is_no_op_with_warning(caplog):
 # --- env scrub (the security-critical part) ---
 
 def test_scrubbed_env_strips_metered_xai_keys(monkeypatch):
-    """A metered XAI_API_KEY / aliases must never reach grok, so it can only use
-    the $0 OIDC session token (~/.grok/auth.json)."""
+    """A metered XAI_API_KEY / aliases / endpoint-redirect vars must never reach
+    grok, so it can only use the $0 OIDC session token (~/.grok/auth.json)."""
     for k in _EXTRA_SCRUB:
         monkeypatch.setenv(k, "LEAK_CANARY")
+    monkeypatch.setenv("HOME", "/home/u")  # must SURVIVE — grok finds auth via HOME
     e = _scrubbed_env()
     for k in _EXTRA_SCRUB:
         assert k not in e, f"{k} must be scrubbed"
     assert "PATH" in e  # not over-scrubbed
+    assert e.get("HOME") == "/home/u"  # over-scrubbing HOME would break auth discovery
+
+
+def test_scrubbed_env_covers_endpoint_redirect_vars():
+    """drop seat-A MEDIUM: endpoint-redirect vars don't end in _API_KEY so the
+    suffix denylist misses them — must be in _EXTRA_SCRUB explicitly."""
+    for v in ("XAI_API_BASE", "XAI_API_HOST", "GROK_API_HOST"):
+        assert v in _EXTRA_SCRUB
 
 
 def test_extra_scrub_covers_xai_api_key():
@@ -79,10 +88,27 @@ def test_firejail_argv_has_hardening_flags():
 def test_firejail_argv_whitelists_grok_runtime_and_prompt_dir():
     argv = _firejail_argv("/usr/bin/firejail", "/home/u/.local/bin/grok",
                           "/tmp/pd/swarph-x.md")
-    # ~/.grok holds auth + sessions
+    # ~/.grok holds auth + sessions (grok needs its runtime tree writable)
     assert any(a.startswith("--whitelist=") and a.endswith("/.grok") for a in argv)
     # the prompt file's own dir must be reachable inside the sandbox
     assert "--whitelist=/tmp/pd" in argv
+
+
+def test_firejail_argv_blacklists_personal_memory_store():
+    """drop seat-A MEDIUM: the global cross-session memory store is sealed at
+    the fs layer (defense-in-depth beyond the --no-memory feature flag) so an
+    injected always-approve tool can't open() the operator's personal context."""
+    argv = _firejail_argv("/usr/bin/firejail", "/grok", "/pd/p.md")
+    assert any(a.startswith("--blacklist=") and a.endswith("/.grok/memory") for a in argv)
+
+
+def test_relative_grok_bin_override_rejected(monkeypatch):
+    """drop NOTE: a relative GROK_BIN re-opens PATH-shadowing the absolute-bin
+    resolution prevents — must be rejected, not used verbatim."""
+    from swarph_mesh.adapters.grok_cli import _resolve_grok_bin
+    monkeypatch.setenv("GROK_BIN", "grok")  # relative
+    with pytest.raises(AdapterError, match="absolute"):
+        _resolve_grok_bin()
 
 
 def test_firejail_argv_is_stateless_no_memory():
@@ -145,6 +171,28 @@ def test_chat_writes_prompt_file_then_cleans_up(tmp_path):
             asyncio.run(a.chat([ChatMessage(role="user", content="x")], model=""))
     assert seen["existed_during_run"] is True
     assert not os.path.exists(seen["pf"])  # cleaned up
+
+
+def test_prompt_file_written_0600_in_0700_dir(tmp_path):
+    """drop seat-A HIGH regression: the prompt file (carries system prompt + all
+    message bodies) must never be group/world-readable — 0600 file, 0700 dir."""
+    import stat
+    pdir = tmp_path / "pd"
+    a = GrokCLIAdapter(grok_bin="/fake/grok", firejail_bin="/fake/firejail",
+                       prompt_dir=str(pdir))
+    seen = {}
+
+    def fake_run(argv, **kw):
+        pf = argv[argv.index("--prompt-file") + 1]
+        seen["file_mode"] = stat.S_IMODE(os.stat(pf).st_mode)
+        seen["dir_mode"] = stat.S_IMODE(os.stat(os.path.dirname(pf)).st_mode)
+        return _mock_proc(stdout="ok")
+
+    with patch("subprocess.run", side_effect=fake_run):
+        with patch("swarph_mesh.adapters.grok_cli._audit"):
+            asyncio.run(a.chat([ChatMessage(role="user", content="secret")], model=""))
+    assert seen["file_mode"] == 0o600, f"prompt file must be 0600, got {oct(seen['file_mode'])}"
+    assert seen["dir_mode"] == 0o700, f"prompt dir must be 0700, got {oct(seen['dir_mode'])}"
 
 
 def test_chat_invokes_through_firejail_with_scrubbed_env(monkeypatch, tmp_path):
