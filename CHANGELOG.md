@@ -16,6 +16,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **[Mesh-as-OS PLAN.md §X draft slot]** — service-mode LLM workers + ephemeral CLI clients per commander chimes 2026-05-09; auth-surface-minimization framing per a design review; targets slot between v0.7.6 + v0.7.7
 - **v0.7.7+** — Transport-agnostic mesh (Tailscale optional; mTLS + WireGuard + cloud VPN paths) — pairs with commander's parallel `/btw` session on mesh-of-meshes federation; load-bearing prereq for mesh-as-OS service-worker cross-host dispatch
 
+## [0.7.9] — 2026-06-13
+
+### Added
+
+- **`GrokCLIAdapter` — `provider="grok-cli"`** — firejail-sandboxed `grok --prompt-file` **subscription** path (xAI Grok Build CLI, model `grok-build`, 512K ctx), the **$0 sibling of the metered `grok` adapter** exactly as `AntigravityAdapter` is the subscription sibling of the metered Gemini adapters. Auth is an OIDC **session token** (`~/.grok/auth.json`) riding a SuperGrok-Heavy subscription → `cost_usd=0.0`, no metered `XAI_API_KEY`.
+  - **Security — grok is agentic + may run `permission_mode=always-approve`.** Every call runs in a **firejail OS sandbox** identical in shape to the agy lane (`--caps.drop=all --nonewprivs --noroot --seccomp --private-tmp`, whitelist only the grok binary + `~/.grok` runtime dir + the prompt-file dir). firejail is the sole, load-bearing containment.
+  - **Prompt-file hardening (drop seat-A review):** prompt written via `os.open(O_EXCL, 0o600)` in a `0700` dir **outside** `~/.grok` (was world-readable `0664` host-side, written before firejail); `--blacklist ~/.grok/memory` seals the cross-session memory contamination store at the fs layer (beyond the `--no-memory` flag); `_scrubbed_env` strips `XAI_API_KEY`/`GROK_API_KEY`/`GROK_CODE_XAI_API_KEY` **plus** the endpoint-redirect class `XAI_API_BASE`/`XAI_API_HOST`/`GROK_API_HOST`; `--no-memory --no-subagents`; `_resolve_grok_bin` rejects a relative `GROK_BIN` (anti-PATH-shadow).
+  - **Stateless by construction** — `--no-memory` so a mesh call never reads/writes any operator's personal grok memory. Plain-text output → token counts `0/0`; per-call audit log (firejail `--trace` is seccomp-incompatible). 22 unit tests; full suite green; live smoke (firejail + real grok) verified.
+- **`__version__` synced** to 0.7.9 in both `pyproject.toml` and `__init__.py` (drift guard).
+
+> Note: the `[0.7.8]` release ("adversarial-sweep hardening", #24) shipped without a CHANGELOG section; recorded here for the gap. Its changes are in PRs #22/#23.
+
 ## [0.7.7] — 2026-05-23
 
 ### Added
