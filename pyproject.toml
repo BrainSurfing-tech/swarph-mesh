@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.7.8"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.8 hardens the substrate (adversarial sweep): recipient validation fails CLOSED on send (no mis-route on a gateway blip), the secret-leak guard catches a bare MESH_GATEWAY_TOKEN paste, gemini prices the model actually run, JSON-retry tokens fold into attribution, and deepseek V4-Pro pricing fails toward over-billing past its promo."
+version = "0.7.9"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.9 adds the GrokCLIAdapter (provider 'grok-cli'): the $0 SUBSCRIPTION Grok lane via firejail-sandboxed `grok --prompt-file` on a SuperGrok-Heavy OIDC session token (sibling of the metered 'grok' adapter), with prompt-file 0600 + memory-store blacklist + endpoint-redirect scrub hardening."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
