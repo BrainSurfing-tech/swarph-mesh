@@ -66,6 +66,13 @@ session if cost exceeds the limit — an enforceable ceiling at the CALL SITE
 rather than an after-the-fact bill. It applies ONLY in programmatic (``-p``)
 mode, which is exactly this lane. It is passed on every call.
 
+Residual — THE VENV ROOT IS THE TRUST BOUNDARY FOR THE TOOL INSTALL. vibe is a
+python console-script, so the firejail whitelist must admit its interpreter and
+site-packages; whitelisting only the script would be a false seal. That is not
+wider than "the package that implements vibe", but it IS wider than one binary:
+whatever else lives inside that uv-tool venv is admitted too. Keep the tool env
+DEDICATED — do not share it with other uv tools. (Raised in review.)
+
 Residual (accepted v1, same as the grok/agy lanes): network egress stays open —
 the LLM call needs outbound 443. Here the credential is an ENV VAR
 (``MISTRAL_API_KEY``) rather than grok's on-disk ``auth.json``, so the exfil
@@ -489,5 +496,14 @@ class VibeCLIAdapter:
         yield ""  # pragma: no cover
 
     def cost_per_token(self, model: str) -> tuple[float, float]:
-        """Subscription path — flat-rate. Returns (0.0, 0.0); no metered cost."""
+        """Subscription path — flat-rate. Returns (0.0, 0.0); no metered cost.
+
+        >>> ``cost_usd = 0.0`` IS A BILLING PATH, NOT A MEASURED SPEND. <<< A
+        consumer doing cost accounting must not read it as "this call was free to
+        produce" — the subscription is paid, and the CLI is tracking a real cost
+        internally (that is what ``--max-price`` interrupts on). We simply cannot
+        observe the number. The enforceable figure is the CEILING, exposed as
+        ``raw_response["max_price_usd"]``. Raised in review, and it is the same
+        distinction as the token counts: report what is known, never infer.
+        """
         return (0.0, 0.0)
