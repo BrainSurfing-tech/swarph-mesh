@@ -346,6 +346,37 @@ def test_jurisdiction_is_declared_and_explicitly_not_attested(monkeypatch):
     assert not any("compliant" in str(k).lower() for k in resp.raw_response)
 
 
+def test_the_docstring_advertises_the_value_the_code_actually_emits(monkeypatch):
+    """>>> THE SUMMARY IS PART OF THE CONTRACT, AND IT IS WHAT GETS READ. <<<
+
+    The jurisdiction fix landed in the mechanism and in the explanation and NOT
+    in the module docstring's opening summary, which went on advertising
+    ``jurisdiction_declared = "eu"`` eight lines above the paragraph explaining
+    why it is ``"eu-unattested"``. A reader who reads the headline — which is
+    what a headline is for — got exactly the contract the fix exists to make
+    inexpressible, from the file's own first paragraph.
+
+    So bind the two: whatever the adapter emits must be what the docstring
+    claims, and the docstring must not advertise the bare value that fails
+    closed by design.
+    """
+    import swarph_mesh.adapters.vibe_cli as mod
+
+    monkeypatch.setenv("MISTRAL_API_KEY", "k")
+    monkeypatch.setattr(subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(
+        argv, 0, stdout=_STREAM, stderr=""))
+    resp = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
+        [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL))
+
+    emitted = resp.raw_response["jurisdiction_declared"]
+    doc = mod.__doc__ or ""
+    assert emitted in doc, f"docstring never mentions the emitted value {emitted!r}"
+    assert 'jurisdiction_declared"] = "eu"' not in doc, (
+        "the docstring advertises a bare 'eu' as the carried value — the exact "
+        "contract the fix exists to make inexpressible"
+    )
+
+
 def test_a_naive_equals_eu_filter_fails_closed(monkeypatch):
     """>>> THE MISREAD MUST BE INEXPRESSIBLE, NOT MERELY FORBIDDEN. <<<
 

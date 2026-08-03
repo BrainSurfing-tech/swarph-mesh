@@ -6,8 +6,9 @@ against a **Mistral subscription**, so ``cost_usd=0.0`` at the mesh layer.
 
 **JURISDICTION — the reason this lane exists beyond capacity.** Mistral AI is a
 French (EU-domiciled) provider, so this is the mesh's only lane whose vendor is
-inside the EU. ``raw_response["jurisdiction_declared"] = "eu"`` is carried so a
-router or an audit can SELECT on it.
+inside the EU. ``raw_response["jurisdiction_declared"] = "eu-unattested"`` is
+carried so a router or an audit can SELECT on it — note the value, never a bare
+``"eu"``; see below for why the qualification lives IN it.
 
     >>> DECLARED, NOT ATTESTED — AND THE VALUE ITSELF SAYS SO. <<< That the
     vendor is EU-domiciled is a fact about the company. Whether THIS
