@@ -60,17 +60,44 @@ def test_canonical_scrub_alone_would_have_removed_it(monkeypatch):
     assert "MISTRAL_API_KEY" not in scrub_env_for_subprocess()
 
 
-def test_scrubbed_env_drops_the_endpoint_redirect_class(monkeypatch):
+def test_scrubbed_env_drops_the_mistral_redirect_class(monkeypatch):
     """These do not end in ``_API_KEY``, so the suffix scrub misses them; an
     inherited value could point the agentic CLI at an attacker endpoint."""
     monkeypatch.setenv("MISTRAL_API_KEY", "k")
-    for var in ("MISTRAL_API_BASE", "MISTRAL_BASE_URL", "MISTRAL_API_HOST",
-                "VIBE_API_BASE", "VIBE_BASE_URL", "VIBE_HOME"):
+    for var in ("MISTRAL_API_BASE", "MISTRAL_BASE_URL", "MISTRAL_API_HOST"):
         monkeypatch.setenv(var, "http://evil.example")
     env = _scrubbed_env()
-    for var in ("MISTRAL_API_BASE", "MISTRAL_BASE_URL", "MISTRAL_API_HOST",
-                "VIBE_API_BASE", "VIBE_BASE_URL", "VIBE_HOME"):
+    for var in ("MISTRAL_API_BASE", "MISTRAL_BASE_URL", "MISTRAL_API_HOST"):
         assert var not in env, f"{var} survived the scrub"
+
+
+def test_an_unknown_vibe_var_does_not_survive_the_scrub(monkeypatch):
+    """>>> THE PREMISE PIN FOR THE OPEN NAMESPACE. <<<
+
+    vibe's own --help declares ``VIBE_*  Override any config field``. Containment
+    of an OPEN namespace cannot be an ENUMERATION — it fails open. The first cut
+    of this adapter listed five vars and let ``VIBE_ACTIVE_MODEL`` (the vendor's
+    own example, which redirects the model) through into the jail.
+
+    This test names a var that does not exist today ON PURPOSE: the day vibe adds
+    a config field, containment must cover it BY CONSTRUCTION rather than because
+    someone re-read --help.
+    """
+    monkeypatch.setenv("MISTRAL_API_KEY", "k")
+    monkeypatch.setenv("VIBE_ACTIVE_MODEL", "local")
+    monkeypatch.setenv("VIBE_SOME_FIELD_THAT_DOES_NOT_EXIST_YET", "attacker")
+    monkeypatch.setenv("VIBE_HOME", "/operator/.vibe")
+    env = _scrubbed_env()
+    leaked = {k: v for k, v in env.items() if k.startswith("VIBE_")}
+    assert leaked == {}, f"VIBE_* survived into the sandbox: {leaked}"
+
+
+def test_the_credential_survives_the_prefix_scrub(monkeypatch):
+    """The prefix scrub must not take the one var the lane needs — MISTRAL_API_KEY
+    does not start with VIBE_, but ordering bugs are cheap to introduce here."""
+    monkeypatch.setenv("MISTRAL_API_KEY", "k")
+    monkeypatch.setenv("VIBE_ACTIVE_MODEL", "local")
+    assert _scrubbed_env().get("MISTRAL_API_KEY") == "k"
 
 
 def test_missing_credential_names_the_cause_not_a_generic_failure(monkeypatch):
@@ -313,10 +340,31 @@ def test_jurisdiction_is_declared_and_explicitly_not_attested(monkeypatch):
         argv, 0, stdout=_STREAM, stderr=""))
     resp = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
         [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL))
-    assert resp.raw_response["jurisdiction_declared"] == "eu"
+    assert resp.raw_response["jurisdiction_declared"] == "eu-unattested"
     assert resp.raw_response["jurisdiction_attested"] is False
     assert "domicile" in resp.raw_response["jurisdiction_basis"]
     assert not any("compliant" in str(k).lower() for k in resp.raw_response)
+
+
+def test_a_naive_equals_eu_filter_fails_closed(monkeypatch):
+    """>>> THE MISREAD MUST BE INEXPRESSIBLE, NOT MERELY FORBIDDEN. <<<
+
+    A value that is only safe when read TOGETHER WITH a separate qualifying flag
+    is the shape that produced a live money-path defect in this mesh: a caller
+    read the value, dropped the ``complete`` flag, and reported sale proceeds as
+    profit. A router doing ``if raw["jurisdiction_declared"] == "eu"`` is the
+    identical mistake, and a docstring forbidding it is not a mechanism.
+
+    So the value carries its own qualification: a naive equality filter must NOT
+    match, which fails closed rather than routing personal data on an unverified
+    contract claim.
+    """
+    monkeypatch.setenv("MISTRAL_API_KEY", "k")
+    monkeypatch.setattr(subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(
+        argv, 0, stdout=_STREAM, stderr=""))
+    resp = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
+        [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL))
+    assert resp.raw_response["jurisdiction_declared"] != "eu"
 
 
 def test_token_counts_are_zero_not_invented(monkeypatch):

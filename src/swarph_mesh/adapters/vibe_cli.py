@@ -9,13 +9,14 @@ French (EU-domiciled) provider, so this is the mesh's only lane whose vendor is
 inside the EU. ``raw_response["jurisdiction_declared"] = "eu"`` is carried so a
 router or an audit can SELECT on it.
 
-    >>> DECLARED, NOT ATTESTED. <<< That the vendor is EU-domiciled is a fact
-    about the company. Whether THIS subscription's terms guarantee EU-only
-    processing/retention is a contract question that no code here can verify,
-    and the field name says so. Do NOT read it as a GDPR compliance
-    attestation, and do not route personal data on it until the DPA terms are
-    confirmed by a human. A field that claimed ``gdpr_compliant`` would be
-    asserting something this process cannot observe.
+    >>> DECLARED, NOT ATTESTED — AND THE VALUE ITSELF SAYS SO. <<< That the
+    vendor is EU-domiciled is a fact about the company. Whether THIS
+    subscription's terms guarantee EU-only processing/retention is a contract
+    question no code here can verify. So the value is the string
+    ``"eu-unattested"``, not ``"eu"``: a router filtering on ``== "eu"`` fails
+    CLOSED rather than matching. ``jurisdiction_attested = False`` remains as
+    the machine-readable half. A field claiming ``gdpr_compliant`` would assert
+    something this process cannot observe.
 
 **CRITICAL — vibe is AGENTIC**, so the same containment posture as the grok-cli
 lane applies. Two things make this lane STRICTLY TIGHTER than that one:
@@ -24,6 +25,18 @@ lane applies. Two things make this lane STRICTLY TIGHTER than that one:
      runs with NO TOOLS AT ALL. The grok lane could only trim (``--no-subagents``)
      and rely on firejail for the rest; here the agentic surface is closed at the
      application layer as well as the OS layer.
+
+     WHICH HALF OF THAT IS ACTUALLY COVERED, since it is an application-layer
+     control in front of an OS-layer seal. A review attack asked what happens if
+     a future vibe RENAMES or drops the flag — would the adapter silently run an
+     agentic CLI *with* tools? MEASURED, and REFUTED: vibe is argparse-based and
+     exits 2 on an unrecognised flag, so a rename breaks this lane LOUDLY rather
+     than quietly re-enabling tools. What is NOT covered is a SEMANTIC change
+     (flag kept, ``*`` no longer meaning "all") — no test on our side can catch
+     that; only a behavioural probe asserting a tool actually refuses to run.
+     Note the asymmetry deliberately: the test asserts the flag is PASSED, not
+     that it is HONORED. That is safe here only because of THEIR parser, not
+     because of our test — so do not "improve" it into a false sense of coverage.
   2. **An EPHEMERAL ``VIBE_HOME`` per call.** vibe keeps sessions/history/trust
      under ``$VIBE_HOME``; pointing it at a fresh 0700 temp dir per invocation
      makes the worker stateless BY CONSTRUCTION. The grok lane had to whitelist
@@ -113,20 +126,28 @@ DEFAULT_MAX_TURNS = int(os.environ.get("VIBE_CLI_MAX_TURNS", "1"))
 #: costume of a broken adapter. ALLOWLIST — never a denylist of the others.
 _ENV_ALLOWLIST: frozenset = frozenset({"MISTRAL_API_KEY"})
 
-#: Redirect class: these do NOT end in ``_API_KEY`` so the suffix scrub misses
-#: them. If vibe honors any, a host env var could point the agentic CLI at an
-#: attacker endpoint (prompt + credential exfil) or off the subscription path.
-#: Same defect class found in review on the grok lane (PR #31 MEDIUM).
+#: >>> ``VIBE_*`` IS SCRUBBED BY PREFIX, NEVER ENUMERATED. <<< The vendor's own
+#: ``--help`` declares the namespace OPEN::
+#:
+#:     VIBE_*          Override any config field (e.g. VIBE_ACTIVE_MODEL=local).
+#:
+#: An enumeration of an open namespace FAILS OPEN. The first cut of this adapter
+#: listed five vars and let ``VIBE_ACTIVE_MODEL`` (the vendor's OWN example,
+#: which redirects the model) and any future field straight through into the
+#: jail — the same allowlist-never-denylist rule this file already applies to the
+#: credential, applied unevenly four lines below it. Caught in review.
+#: Derive containment from the vendor's DECLARED domain, not from the vars we
+#: happened to think of.
+_SCRUB_PREFIXES = ("VIBE_",)
+
+#: The ``MISTRAL_*`` redirect class, which the suffix scrub misses because these
+#: do NOT end in ``_API_KEY``. Enumerating here is defensible: unlike ``VIBE_*``,
+#: that namespace is not declared open by the vendor. Same defect class found in
+#: review on the grok lane (PR #31 MEDIUM).
 _EXTRA_SCRUB = (
     "MISTRAL_API_BASE",
     "MISTRAL_BASE_URL",
     "MISTRAL_API_HOST",
-    "VIBE_API_BASE",
-    "VIBE_BASE_URL",
-    # VIBE_HOME is set explicitly per call to the ephemeral dir; an inherited
-    # value would redirect the CLI back at the operator's ~/.vibe, defeating the
-    # statelessness this lane is built on. Strip then set.
-    "VIBE_HOME",
 )
 
 _AUDIT_LOG = os.environ.get(
@@ -199,6 +220,10 @@ def _scrubbed_env() -> dict:
     through by default.
     """
     env = scrub_env_for_subprocess()
+    # Prefix scrub FIRST — the open namespace, by construction rather than by
+    # enumeration. VIBE_HOME is caught here too and re-set explicitly per call.
+    for k in [k for k in env if k.startswith(_SCRUB_PREFIXES)]:
+        env.pop(k, None)
     for k in _EXTRA_SCRUB:
         env.pop(k, None)
     for k in _ENV_ALLOWLIST:
@@ -438,10 +463,19 @@ class VibeCLIAdapter:
                 "tools": "none (--disabled-tools '*')",
                 "state": "ephemeral VIBE_HOME (stateless by construction)",
                 "max_price_usd": self._max_price,
-                # DECLARED, NOT ATTESTED — see the module docstring. The vendor is
-                # EU-domiciled; the processing terms are a contract fact this
-                # process cannot observe.
-                "jurisdiction_declared": "eu",
+                # >>> THE QUALIFICATION IS IN THE VALUE, NOT BESIDE IT. <<< The
+                # value is "eu-unattested", never "eu", so a naive router doing
+                # `if raw["jurisdiction_declared"] == "eu"` FAILS CLOSED — it
+                # does not match — instead of matching and silently routing
+                # personal data on an unverified contract claim. A consumer that
+                # genuinely wants unattested-EU must ask for it BY NAME.
+                # A value that is only safe when read together with a separate
+                # qualifying flag is the shape that produced a live money-path
+                # defect in this mesh (a caller read the value, dropped the
+                # `complete` flag, and reported sale proceeds as profit). A
+                # docstring forbidding the misread is not a mechanism; making the
+                # wrong reading INEXPRESSIBLE is. Caught in review.
+                "jurisdiction_declared": "eu-unattested",
                 "jurisdiction_basis": "vendor domicile (Mistral AI SAS, France)",
                 "jurisdiction_attested": False,
                 "token_stats": "unavailable (vibe JSON output has no usage block)",
