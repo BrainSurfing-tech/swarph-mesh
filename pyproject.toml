@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.7.9"
-description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.7.9 adds the GrokCLIAdapter (provider 'grok-cli'): the $0 SUBSCRIPTION Grok lane via firejail-sandboxed `grok --prompt-file` on a SuperGrok-Heavy OIDC session token (sibling of the metered 'grok' adapter), with prompt-file 0600 + memory-store blacklist + endpoint-redirect scrub hardening."
+version = "0.8.0"
+description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.8.0 adds the VibeCLIAdapter (provider 'vibe-cli'): the EU-domiciled SUBSCRIPTION Mistral lane via firejail-sandboxed `vibe -p`, with a --max-price hard cost ceiling enforced per call, no tools at all, an ephemeral VIBE_HOME (stateless by construction), the prompt piped on stdin so it never touches disk, and a declared-not-attested jurisdiction attribute for residency-aware routing."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
@@ -72,6 +72,14 @@ swarph_mesh = ["py.typed"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+# Test the TREE, not whatever swarph_mesh happens to be installed. Without this
+# pytest imports site-packages, so the suite validates the last INSTALLED
+# version while you edit the source — and modules that exist only in the tree
+# (every CLI adapter, the whole registry package) abort collection outright.
+# Measured 2026-08-03 on a dev box: installed 0.7.4 vs tree 0.7.9, 11 test
+# modules uncollectable, the run Interrupted — local `pytest` could not pass or
+# fail, only abort. Same defect fixed in swarph-cli days earlier.
+pythonpath = ["src"]
 
 
 # v0.7.0 — mypy strict gate on the public Protocol surface.
