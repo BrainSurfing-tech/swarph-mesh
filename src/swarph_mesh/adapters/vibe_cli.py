@@ -4,6 +4,18 @@ The **subscription** Mistral lane, sibling of :class:`GrokCLIAdapter`
 (``grok_cli.py``) and :class:`AntigravityAdapter`: Mistral's ``vibe`` CLI runs
 against a **Mistral subscription**, so ``cost_usd=0.0`` at the mesh layer.
 
+>>> READ THIS BEFORE "HARDENING" THE CREDENTIAL HANDLING, BECAUSE THE SIBLING
+    LANE TEACHES THE OPPOSITE LESSON. <<< Mistral issues **subscription API
+keys**: ``MISTRAL_API_KEY`` IS the subscription path, not a metered one. That
+inverts the grok lane's design intent — ``grok_cli.py`` deliberately scrubs
+``XAI_API_KEY`` so grok can ONLY use its $0 OIDC session token and no
+pay-per-token fallback can fire. Here there is no metered sibling to fall back
+to, and **scrubbing the key does not harden this lane, it breaks it**. A
+maintainer arriving from ``grok_cli.py`` and applying its rule by analogy would
+produce a worker with no credential — the exact born-broken failure the
+allowlist below exists to prevent. The presence of an API key is NOT evidence of
+metered billing; on this vendor it is evidence of the subscription.
+
 **JURISDICTION — the reason this lane exists beyond capacity.** Mistral AI is a
 French (EU-domiciled) provider, so this is the mesh's only lane whose vendor is
 inside the EU. ``raw_response["jurisdiction_declared"] = "eu-unattested"`` is
