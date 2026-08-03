@@ -16,6 +16,12 @@ produce a worker with no credential — the exact born-broken failure the
 allowlist below exists to prevent. The presence of an API key is NOT evidence of
 metered billing; on this vendor it is evidence of the subscription.
 
+PROVENANCE, because this is not derivable from any doc we hold and the wrong
+inference is the natural one after wiring several other lanes: **establishing it
+took a direct conversation with the vendor.** It is written here rather than
+left to be re-derived, since the cost of getting it wrong is a lane that either
+silently bills the wrong way or refuses to start.
+
 **JURISDICTION — the reason this lane exists beyond capacity.** Mistral AI is a
 French (EU-domiciled) provider, so this is the mesh's only lane whose vendor is
 inside the EU. ``raw_response["jurisdiction_declared"] = "eu-unattested"`` is
