@@ -24,18 +24,37 @@ silently bills the wrong way or refuses to start.
 
 **JURISDICTION — the reason this lane exists beyond capacity.** Mistral AI is a
 French (EU-domiciled) provider, so this is the mesh's only lane whose vendor is
-inside the EU. ``raw_response["jurisdiction_declared"] = "eu-unattested"`` is
-carried so a router or an audit can SELECT on it — note the value, never a bare
-``"eu"``; see below for why the qualification lives IN it.
+inside the EU. That fact is carried as ``raw_response["vendor_domicile"] = "FR"``
+— **as informational metadata, NEVER as a routing-eligibility jurisdiction.**
 
-    >>> DECLARED, NOT ATTESTED — AND THE VALUE ITSELF SAYS SO. <<< That the
-    vendor is EU-domiciled is a fact about the company. Whether THIS
-    subscription's terms guarantee EU-only processing/retention is a contract
-    question no code here can verify. So the value is the string
-    ``"eu-unattested"``, not ``"eu"``: a router filtering on ``== "eu"`` fails
-    CLOSED rather than matching. ``jurisdiction_attested = False`` remains as
-    the machine-readable half. A field claiming ``gdpr_compliant`` would assert
-    something this process cannot observe.
+    >>> A COMPANY'S LEGAL DOMICILE IS NOT WHERE YOUR DATA IS PROCESSED, AND THIS
+    ADAPTER MUST NOT LET THE TWO BE CONFLATED. <<< Two separate facts:
+
+        vendor_domicile               "FR"        <- a fact about the COMPANY
+        processing_residency          "unknown"   <- the property anyone actually needs
+        processing_residency_attested False
+
+    An earlier revision emitted a single ``jurisdiction_declared`` field.
+    Qualifying its VALUE (``"eu-unattested"``, so ``== "eu"`` fails closed) was
+    not enough, and the reason is worth keeping: **the field was still SHAPED
+    like a data-residency selector**, so a prefix or ``contains`` match groups it
+    as EU regardless of the suffix. Review dissolved the FRAME rather than the
+    value — the attribute was measuring the wrong property, and **fail-closed on
+    a wrong axis is still wrong.**
+
+    NEITHER FIELD IS A ROUTING-ELIGIBILITY JURISDICTION. Routing personal data
+    requires the processing/retention region, which is a CONTRACT fact no code
+    here can observe; it is reported as ``unknown`` and stays that way until a
+    human confirms the DPA terms. A field claiming ``gdpr_compliant`` — or a
+    bare ``"eu"`` — would assert something this process cannot see.
+
+    AND NOTE WHERE THESE LIVE: ``raw_response`` is documented in ``types.py`` as
+    a debug payload **stripped before TSDB write**. So these are diagnostics, not
+    a durable audit trail. An earlier revision advertised this payload as a
+    surface a router or an audit could query — false for exactly the durable
+    consumers that would need it, since the row they read never carries it.
+    Anything that must survive to the attribution row belongs in
+    ``AttributionEvent.extra``, not here.
 
 **CRITICAL — vibe is AGENTIC**, so the same containment posture as the grok-cli
 lane applies. Two things make this lane STRICTLY TIGHTER than that one:
@@ -489,21 +508,21 @@ class VibeCLIAdapter:
                 "tools": "none (--disabled-tools '*')",
                 "state": "ephemeral VIBE_HOME (stateless by construction)",
                 "max_price_usd": self._max_price,
-                # >>> THE QUALIFICATION IS IN THE VALUE, NOT BESIDE IT. <<< The
-                # value is "eu-unattested", never "eu", so a naive router doing
-                # `if raw["jurisdiction_declared"] == "eu"` FAILS CLOSED — it
-                # does not match — instead of matching and silently routing
-                # personal data on an unverified contract claim. A consumer that
-                # genuinely wants unattested-EU must ask for it BY NAME.
-                # A value that is only safe when read together with a separate
-                # qualifying flag is the shape that produced a live money-path
-                # defect in this mesh (a caller read the value, dropped the
-                # `complete` flag, and reported sale proceeds as profit). A
-                # docstring forbidding the misread is not a mechanism; making the
-                # wrong reading INEXPRESSIBLE is. Caught in review.
-                "jurisdiction_declared": "eu-unattested",
-                "jurisdiction_basis": "vendor domicile (Mistral AI SAS, France)",
-                "jurisdiction_attested": False,
+                # >>> NOT A JURISDICTION SELECTOR. A COMPANY'S LEGAL DOMICILE IS
+                # NOT WHERE YOUR DATA IS PROCESSED. <<< Earlier revisions emitted
+                # `jurisdiction_declared`, and qualifying the VALUE
+                # ("eu-unattested", so `== "eu"` fails closed) did not fix it:
+                # the field was still SHAPED like a data-residency selector, so a
+                # prefix/contains match groups it as EU. Review dissolved the
+                # frame rather than the value — the attribute was measuring the
+                # wrong property, and fail-closed on a wrong axis is still wrong.
+                # So: state the FACT (where the vendor is incorporated) and state
+                # the UNKNOWN (where processing and retention actually happen)
+                # separately, and offer neither as routing eligibility.
+                "vendor_domicile": "FR",
+                "vendor_legal_entity": "Mistral AI SAS",
+                "processing_residency": "unknown",
+                "processing_residency_attested": False,
                 "token_stats": "unavailable (vibe JSON output has no usage block)",
                 "net_egress_residual": "open (LLM call needs 443; documented v1)",
             },

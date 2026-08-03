@@ -331,71 +331,74 @@ def test_chat_pipes_prompt_on_stdin_and_cleans_up_ephemeral_dirs(monkeypatch):
     assert seen["vibe_home"]
     assert not Path(seen["vibe_home"]).exists(), "ephemeral VIBE_HOME was not removed"
 
+def test_vendor_domicile_and_processing_residency_are_separate_facts(monkeypatch):
+    """>>> A COMPANY'S LEGAL DOMICILE IS NOT WHERE YOUR DATA IS PROCESSED. <<<
 
-def test_jurisdiction_is_declared_and_explicitly_not_attested(monkeypatch):
-    """The EU claim must be selectable by a router AND must not overstate. A
-    field asserting compliance would claim something this process cannot see."""
+    State the fact we know (where the vendor is incorporated) and the unknown we
+    cannot see (where processing/retention happen) as TWO fields, so nothing
+    invites a consumer to read the first as the second.
+    """
     monkeypatch.setenv("MISTRAL_API_KEY", "k")
     monkeypatch.setattr(subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(
         argv, 0, stdout=_STREAM, stderr=""))
-    resp = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
-        [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL))
-    assert resp.raw_response["jurisdiction_declared"] == "eu-unattested"
-    assert resp.raw_response["jurisdiction_attested"] is False
-    assert "domicile" in resp.raw_response["jurisdiction_basis"]
-    assert not any("compliant" in str(k).lower() for k in resp.raw_response)
+    raw = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
+        [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL)).raw_response
+    assert raw["vendor_domicile"] == "FR"
+    assert raw["vendor_legal_entity"] == "Mistral AI SAS"
+    assert raw["processing_residency"] == "unknown"
+    assert raw["processing_residency_attested"] is False
 
 
-def test_the_docstring_advertises_the_value_the_code_actually_emits(monkeypatch):
-    """>>> THE SUMMARY IS PART OF THE CONTRACT, AND IT IS WHAT GETS READ. <<<
+def test_no_field_is_shaped_like_a_jurisdiction_selector(monkeypatch):
+    """>>> PINS THE FRAME, NOT THE VALUE — THE CORRECTION REVIEW FORCED. <<<
 
-    The jurisdiction fix landed in the mechanism and in the explanation and NOT
-    in the module docstring's opening summary, which went on advertising
-    ``jurisdiction_declared = "eu"`` eight lines above the paragraph explaining
-    why it is ``"eu-unattested"``. A reader who reads the headline — which is
-    what a headline is for — got exactly the contract the fix exists to make
-    inexpressible, from the file's own first paragraph.
+    An earlier revision emitted ``jurisdiction_declared="eu-unattested"``. The
+    VALUE was honestly qualified (``== "eu"`` failed closed) and the field was
+    STILL wrong: it was SHAPED like a data-residency selector, so a prefix or
+    ``contains`` match groups it as EU regardless of the suffix. **Fail-closed on
+    a wrong axis is still wrong.**
 
-    So bind the two: whatever the adapter emits must be what the docstring
-    claims, and the docstring must not advertise the bare value that fails
-    closed by design.
+    So assert the absence of the SHAPE: no jurisdiction-named key, and no string
+    value a naive ``contains("eu")`` residency filter would sweep up.
+    ``vendor_domicile="FR"`` is deliberately the COMPANY's country code — it
+    neither contains "eu" nor names a jurisdiction.
     """
+    monkeypatch.setenv("MISTRAL_API_KEY", "k")
+    monkeypatch.setattr(subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(
+        argv, 0, stdout=_STREAM, stderr=""))
+    raw = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
+        [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL)).raw_response
+
+    assert not any("jurisdiction" in str(k).lower() for k in raw), (
+        "a jurisdiction-shaped key invites exactly the conflation this fix removed")
+    assert not any("compliant" in str(k).lower() for k in raw)
+    swept = {k: v for k, v in raw.items() if isinstance(v, str) and "eu" in v.lower()}
+    assert swept == {}, f"a naive contains('eu') residency filter would sweep up: {swept}"
+
+
+def test_the_docstring_does_not_promise_durability_raw_response_lacks(monkeypatch):
+    """>>> raw_response IS DOCUMENTED IN types.py AS "stripped before TSDB write".
+    <<< An earlier docstring said a router or an audit could "SELECT on it" — FALSE
+    for exactly the durable consumers that would need it. The summary is part of
+    the contract, so bind it: the emitted facts must appear in the docstring, and
+    the docstring must not advertise the removed jurisdiction selector."""
     import swarph_mesh.adapters.vibe_cli as mod
 
     monkeypatch.setenv("MISTRAL_API_KEY", "k")
     monkeypatch.setattr(subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(
         argv, 0, stdout=_STREAM, stderr=""))
-    resp = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
-        [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL))
-
-    emitted = resp.raw_response["jurisdiction_declared"]
+    raw = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
+        [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL)).raw_response
     doc = mod.__doc__ or ""
-    assert emitted in doc, f"docstring never mentions the emitted value {emitted!r}"
-    assert 'jurisdiction_declared"] = "eu"' not in doc, (
-        "the docstring advertises a bare 'eu' as the carried value — the exact "
-        "contract the fix exists to make inexpressible"
-    )
-
-
-def test_a_naive_equals_eu_filter_fails_closed(monkeypatch):
-    """>>> THE MISREAD MUST BE INEXPRESSIBLE, NOT MERELY FORBIDDEN. <<<
-
-    A value that is only safe when read TOGETHER WITH a separate qualifying flag
-    is the shape that produced a live money-path defect in this mesh: a caller
-    read the value, dropped the ``complete`` flag, and reported sale proceeds as
-    profit. A router doing ``if raw["jurisdiction_declared"] == "eu"`` is the
-    identical mistake, and a docstring forbidding it is not a mechanism.
-
-    So the value carries its own qualification: a naive equality filter must NOT
-    match, which fails closed rather than routing personal data on an unverified
-    contract claim.
-    """
-    monkeypatch.setenv("MISTRAL_API_KEY", "k")
-    monkeypatch.setattr(subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(
-        argv, 0, stdout=_STREAM, stderr=""))
-    resp = asyncio.run(VibeCLIAdapter(vibe_bin="/o/bin/vibe", firejail_bin="/f").chat(
-        [ChatMessage(role="user", content="q")], model=DEFAULT_MODEL))
-    assert resp.raw_response["jurisdiction_declared"] != "eu"
+    assert raw["vendor_domicile"] in doc
+    assert "processing_residency" in doc
+    assert "stripped before TSDB write" in doc, (
+        "the docstring must say where these fields do NOT survive to")
+    # The specific false promise that was there before: raw_response presented as
+    # a durable surface a router or audit could select on.
+    assert "SELECT on it" not in doc, (
+        "raw_response is stripped before the attribution row is written — it "
+        "cannot be advertised as a selectable audit surface")
 
 
 def test_token_counts_are_zero_not_invented(monkeypatch):
