@@ -12,7 +12,7 @@ The gate set:
 * **G1**  headless one-shot — needs a ``runner`` to actually invoke the tool.
 * **G1b** input-channel + max-prompt-byte cap — informational overflow probe.
 * **G2**  sandbox deny-fs — ⚠️ SECURITY-CRITICAL, drop-gated (#2171), STUB only.
-* **G3**  billing class — science-claude seat-A ruling, branches on billing_class.
+* **G3**  billing class — review seat-A ruling, branches on billing_class.
 * **G4**  config isolation — scans a clean creds-only HOME for inherited config.
 * **G5**  provenance — sha256 of the pinned source.
 * **G6**  isolation-class — ⚠️ SECURITY-CRITICAL, drop-gated, STUB only.
@@ -105,7 +105,7 @@ def _g2_sandbox(spec: AdapterSpec) -> GateResult:
 
 
 def _g3_billing(spec: AdapterSpec, runner) -> GateResult:
-    """G3 — billing class (science-claude seat-A ruling)."""
+    """G3 — billing class (review seat-A ruling)."""
     bc = spec.billing_class
     if bc == "subscription_zero":
         return GateResult(

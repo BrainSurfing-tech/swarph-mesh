@@ -121,7 +121,7 @@ class AdapterRegistry:
     def probe_all(self) -> dict[str, dict[str, GateResult]]:
         """Re-probe every registered adapter IN PARALLEL, fail-loud.
 
-        science-claude seat-A persistence ruling: a registered adapter's gates
+        review seat-A persistence ruling: a registered adapter's gates
         are re-verified (not trusted from register-time) concurrently via a
         thread pool. ANY gate ``FAIL`` raises :class:`AdapterError`. Results are
         cached in-memory on the instance and returned keyed by adapter name.
