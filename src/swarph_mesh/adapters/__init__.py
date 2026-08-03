@@ -86,6 +86,13 @@ def get_adapter(provider: str, *, api_key: Optional[str] = None) -> LLMAdapter:
         _REGISTRY[provider] = adapter
         return adapter
 
+    if provider == "vibe-cli":
+        from swarph_mesh.adapters.vibe_cli import VibeCLIAdapter
+
+        adapter = VibeCLIAdapter(api_key=api_key)
+        _REGISTRY[provider] = adapter
+        return adapter
+
     raise UnknownProvider(
         f"no adapter registered for provider {provider!r}. "
         "v0.5.0 ships all five Phase 4 adapters: gemini + deepseek + claude + "
