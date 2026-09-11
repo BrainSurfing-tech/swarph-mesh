@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import shutil
 
-from swarph_mesh.exceptions import AdapterError
+from swarph_mesh.exceptions import BinaryNotFound
 
 
 def which_or_raise(name: str, *, env_var: str, checked: tuple[str, ...] = ()) -> str:
@@ -29,7 +29,7 @@ def which_or_raise(name: str, *, env_var: str, checked: tuple[str, ...] = ()) ->
     if found:
         return found
     probed = "".join(f"{c} (absent), " for c in checked)
-    raise AdapterError(
+    raise BinaryNotFound(
         f"`{name}` not found: searched {probed}"
         f"PATH={os.environ.get('PATH', '')!r} and ${env_var} is unset. "
         f"Install {name} or set ${env_var} to its absolute path."

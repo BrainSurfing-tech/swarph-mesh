@@ -19,7 +19,7 @@ import shutil
 import pytest
 
 from swarph_mesh.adapters import antigravity, grok_cli, vibe_cli
-from swarph_mesh.exceptions import AdapterError
+from swarph_mesh.exceptions import AdapterError, BinaryNotFound
 
 _ENV_VARS = ("AGY_BIN", "FIREJAIL_BIN", "GROK_BIN", "VIBE_BIN")
 
@@ -51,7 +51,7 @@ def test_missing_binary_raises_naming_the_search(
 ):
     """No manufactured path: absence raises, and the message carries its own
     diagnosis — the binary, the override var, and the PATH searched."""
-    with pytest.raises(AdapterError) as exc_info:
+    with pytest.raises(BinaryNotFound) as exc_info:
         resolver()
     msg = str(exc_info.value)
     assert name in msg
@@ -59,8 +59,17 @@ def test_missing_binary_raises_naming_the_search(
     assert "PATH=" in msg
 
 
+def test_exception_satisfies_both_contracts(absent_everywhere):
+    """The #823 falsifier demands a RuntimeError; the mesh contract demands
+    the uniform AdapterError catch keeps working. BinaryNotFound is both."""
+    with pytest.raises(BinaryNotFound) as exc_info:
+        antigravity._resolve_firejail_bin()
+    assert isinstance(exc_info.value, AdapterError)
+    assert isinstance(exc_info.value, RuntimeError)
+
+
 def test_agy_raise_names_the_home_local_it_probed(absent_everywhere):
-    with pytest.raises(AdapterError) as exc_info:
+    with pytest.raises(BinaryNotFound) as exc_info:
         antigravity._resolve_agy_bin()
     assert str(absent_everywhere / ".local" / "bin" / "agy") in str(exc_info.value)
 
