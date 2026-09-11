@@ -145,14 +145,33 @@ def test_aggregate_tokens_sums_across_models():
             },
         }
     }
-    inp, out, cached = _aggregate_tokens(stats)
+    inp, out, cached, thoughts = _aggregate_tokens(stats)
     assert inp == 2986 + 10825
     assert out == 48 + 1
     assert cached == 7865
+    assert thoughts is None  # no model reported `thoughts` → not reported
 
 
 def test_aggregate_tokens_empty_is_zero():
-    assert _aggregate_tokens({}) == (0, 0, 0)
+    # #244: with no models at all, cached/thoughts are None (nothing
+    # reported), not 0 — the ints stay 0.
+    assert _aggregate_tokens({}) == (0, 0, None, None)
+
+
+def test_aggregate_tokens_thoughts_sum_and_zero_244():
+    """`thoughts` maps to thinking_tokens: summed when reported, and a
+    reported 0 stays 0 (distinct from the absent-key None above)."""
+    stats = {
+        "models": {
+            "a": {"tokens": {"prompt": 10, "candidates": 5, "thoughts": 21}},
+            "b": {"tokens": {"prompt": 10, "candidates": 5, "thoughts": 0}},
+        }
+    }
+    inp, out, cached, thoughts = _aggregate_tokens(stats)
+    assert thoughts == 21
+    assert cached is None  # no `cached` key on any model
+    stats_zero = {"models": {"a": {"tokens": {"prompt": 1, "candidates": 1, "thoughts": 0}}}}
+    assert _aggregate_tokens(stats_zero)[3] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +252,8 @@ def test_chat_extracts_usage_and_zero_cost():
     assert resp.text == "response text"
     assert resp.input_tokens == 200
     assert resp.output_tokens == 100
-    assert resp.cost_usd == 0.0  # subscription — always 0.0
+    assert resp.cost_usd == 0.0  # subscription — the CLI reports no figure
+    assert resp.cost_basis == "unknown"  # #244: the honest zero, not "free"
     assert resp.raw_response["billing_path"] == "subscription"
     assert "api_metered_cost_usd" in resp.raw_response
 
@@ -246,6 +266,27 @@ def test_chat_marks_cached_when_cached_nonzero():
         resp = asyncio.run(a.chat([ChatMessage(role="user", content="x")], model="m"))
     assert resp.cached is True
     assert resp.raw_response["cached_tokens"] == 7865
+    assert resp.cache_read_tokens == 7865  # #244 contract field
+
+
+def test_chat_maps_thoughts_to_thinking_tokens_244():
+    """#244: stats `thoughts` → thinking_tokens; absent `thoughts` on every
+    model → None; no cache-creation split on this CLI → None."""
+    a = GeminiCLIAdapter(gemini_bin="/fake/gemini")
+    with patch("subprocess.run", return_value=_mock_proc(
+        models={"m": {"tokens": {"prompt": 50, "candidates": 5, "cached": 0, "thoughts": 21}}},
+    )):
+        resp = asyncio.run(a.chat([ChatMessage(role="user", content="x")], model="m"))
+    assert resp.thinking_tokens == 21
+    assert resp.cache_read_tokens == 0  # reported zero — NOT None
+    assert resp.cache_creation_1h is None and resp.cache_creation_5m is None
+
+    with patch("subprocess.run", return_value=_mock_proc(
+        models={"m": {"tokens": {"prompt": 50, "candidates": 5}}},
+    )):
+        resp = asyncio.run(a.chat([ChatMessage(role="user", content="x")], model="m"))
+    assert resp.thinking_tokens is None
+    assert resp.cache_read_tokens is None
 
 
 def test_chat_raises_on_nonzero_exit():

@@ -11,7 +11,7 @@ against the Protocol without coupling to a specific provider.
 
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Optional, Protocol, runtime_checkable
+from typing import Any, AsyncIterator, Literal, Optional, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -46,7 +46,43 @@ class LLMResponse(BaseModel):
     )
     input_tokens: int = Field(0, description="Prompt tokens billed.")
     output_tokens: int = Field(0, description="Completion tokens billed.")
+    # #244 token-capture contract. For every Optional[int] field below:
+    # None = "this provider did not report it"; 0 = "reported, and it was zero".
+    # Adapters must NOT collapse the two — a durable row's None is the signal
+    # that a lane cannot see the quantity, not a zero measurement of it.
+    thinking_tokens: Optional[int] = Field(
+        None,
+        description="Reasoning/thinking tokens (billed as output, absent from "
+        "``text``). None = provider did not report it; 0 = reported zero.",
+    )
+    cache_read_tokens: Optional[int] = Field(
+        None,
+        description="Tokens read from a provider-side cache. "
+        "None = provider did not report it; 0 = reported zero.",
+    )
+    cache_creation_1h: Optional[int] = Field(
+        None,
+        description="Cache-creation tokens on the 1h-TTL tier. "
+        "None = provider did not report it; 0 = reported zero.",
+    )
+    cache_creation_5m: Optional[int] = Field(
+        None,
+        description="Cache-creation tokens on the 5m-TTL tier. "
+        "None = provider did not report it; 0 = reported zero.",
+    )
     cost_usd: float = Field(0.0, description="Adapter-computed cost in USD.")
+    cost_basis: Literal["metered", "list", "calculated", "free", "unknown"] = Field(
+        "unknown",
+        description="How cost_usd was established (#244). "
+        '"metered": real billed USD from a metered API. '
+        '"list": provider-reported list-price equivalent of subscription '
+        "consumption (e.g. claude -p total_cost_usd). "
+        '"calculated": derived from a price table — consumer-side; no '
+        "swarph-mesh adapter emits this value. "
+        '"free": genuinely zero marginal cost AND zero capacity consumed. '
+        '"unknown": no figure available — a 0.0 beside "unknown" must never '
+        "be aggregated as measured free usage.",
+    )
     duration_s: float = Field(..., description="Wall-clock latency in seconds.")
     cached: bool = Field(
         False,

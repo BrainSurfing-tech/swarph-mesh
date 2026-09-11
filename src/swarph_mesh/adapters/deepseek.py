@@ -273,6 +273,7 @@ class DeepSeekAdapter:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost,
+            cost_basis="metered",  # #244: real per-token billing on this lane
             duration_s=duration_s,
             cached=cached_tokens > 0,
             raw_response={

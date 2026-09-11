@@ -422,3 +422,53 @@ def test_json_harness_retry_tokens_folded_into_resp(file_writer):
     assert resp.output_tokens == 30
     assert abs(resp.cost_usd - 0.07) < 1e-9
     reset_registry()
+
+
+def test_json_harness_retry_folds_244_fields_none_aware(file_writer):
+    """#244: the Optional token fields fold None-aware — None+None stays
+    None ("nobody reported it"), None+int and int+int carry the sum of
+    what WAS reported. Same undercount defect class as the test above,
+    one field-generation later."""
+    reset_registry()
+
+    class _TokRetryAdapter:
+        name = "tokretry244"
+        default_model = "t-v1"
+
+        def __init__(self):
+            self.n = 0
+
+        async def chat(self, messages, model, **kwargs):
+            self.n += 1
+            if self.n == 1:
+                return LLMResponse(
+                    text="prose, no json", duration_s=0.01,
+                    thinking_tokens=None,      # first leg: not reported
+                    cache_read_tokens=100,
+                    cache_creation_1h=None,
+                )
+            return LLMResponse(
+                text='{"ok": true}', duration_s=0.01,
+                thinking_tokens=21,            # retry leg reports it
+                cache_read_tokens=50,
+                cache_creation_1h=None,        # neither leg reports → None
+            )
+
+        async def stream(self, *a, **kw):
+            if False:
+                yield ""
+
+        def cost_per_token(self, model):
+            return (0.0, 0.0)
+
+    register_adapter("tokretry244", _TokRetryAdapter())
+    sc = SwarphCall(provider="tokretry244", caller="test.tok.retry244")
+    resp = asyncio.run(sc.chat(
+        messages=[ChatMessage(role="user", content="x")],
+        json_schema={"type": "object"},
+    ))
+    assert resp.thinking_tokens == 21          # None + 21 → 21, not None
+    assert resp.cache_read_tokens == 150       # 100 + 50
+    assert resp.cache_creation_1h is None      # None + None stays None
+    assert resp.cache_creation_5m is None
+    reset_registry()

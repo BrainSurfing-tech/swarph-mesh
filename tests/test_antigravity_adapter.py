@@ -7,6 +7,7 @@ Live smoke (real firejail + agy + ~/.gemini OAuth) lives in
 from __future__ import annotations
 
 import asyncio
+import json
 import subprocess
 from unittest.mock import MagicMock, patch
 
@@ -72,6 +73,8 @@ def test_firejail_argv_has_hardening_flags():
     assert any(a.startswith("--whitelist=") and a.endswith("/.local/bin/agy") for a in argv)
     assert "/home/u/.local/bin/agy" in argv
     assert "-p" in argv and "hi" in argv
+    # #244: JSON envelope carries the token stats plain text discards
+    assert "--output-format" in argv and "json" in argv
 
 
 def test_firejail_argv_whitelists_agy_runtime_dir():
@@ -92,24 +95,96 @@ def test_build_prompt_multi_turn():
 
 # --- chat() mocked ---
 
-def _mock_proc(*, stdout="OK", returncode=0, stderr=""):
+def _agy_json(**over):
+    """The measured `agy -p --output-format json` envelope shape (#244)."""
+    payload = {
+        "status": "SUCCESS",
+        "response": "hello world",
+        "thinking_tokens": 21,
+        "cache_read_tokens": 8129,
+        "input_tokens": 12,
+        "output_tokens": 34,
+    }
+    payload.update(over)
+    return json.dumps(payload)
+
+
+def _mock_proc(*, stdout=None, returncode=0, stderr=""):
     p = MagicMock(spec=subprocess.CompletedProcess)
     p.returncode = returncode
-    p.stdout = stdout
+    p.stdout = _agy_json() if stdout is None else stdout
     p.stderr = stderr
     return p
 
 
 def test_chat_returns_text_zero_cost_subscription():
     a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
-    with patch("subprocess.run", return_value=_mock_proc(stdout="hello world\n")):
+    with patch("subprocess.run", return_value=_mock_proc()):
         with patch("swarph_mesh.adapters.antigravity._audit"):
             r = asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model="gemini-3.5-flash"))
     assert r.text == "hello world"
     assert r.cost_usd == 0.0
-    assert r.input_tokens == 0 and r.output_tokens == 0
+    assert r.cost_basis == "unknown"  # agy reports no cost figure (#244)
+    assert r.input_tokens == 12 and r.output_tokens == 34
     assert r.raw_response["billing_path"] == "subscription"
     assert r.raw_response["sandbox"] == "firejail"
+
+
+def test_chat_maps_token_stats_244():
+    """The capture that used to be discarded: top-level thinking_tokens +
+    cache_read_tokens map to the contract fields; the split agy does not
+    report (cache_creation_*) stays None, not 0."""
+    a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
+    with patch("subprocess.run", return_value=_mock_proc()):
+        with patch("swarph_mesh.adapters.antigravity._audit"):
+            r = asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
+    assert r.thinking_tokens == 21
+    assert r.cache_read_tokens == 8129
+    assert r.cache_creation_1h is None and r.cache_creation_5m is None
+    assert r.cached is True  # cache_read_tokens > 0
+
+
+def test_chat_reported_zero_stays_zero_not_none():
+    """None = not reported; 0 = reported zero. The two must not collapse."""
+    a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
+    with patch("subprocess.run", return_value=_mock_proc(
+            stdout=_agy_json(thinking_tokens=0, cache_read_tokens=0))):
+        with patch("swarph_mesh.adapters.antigravity._audit"):
+            r = asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
+    assert r.thinking_tokens == 0
+    assert r.cache_read_tokens == 0
+    assert r.cached is False
+
+
+def test_chat_absent_stats_stay_none():
+    a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
+    with patch("subprocess.run", return_value=_mock_proc(
+            stdout=json.dumps({"status": "SUCCESS", "response": "hi"}))):
+        with patch("swarph_mesh.adapters.antigravity._audit"):
+            r = asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
+    assert r.thinking_tokens is None
+    assert r.cache_read_tokens is None
+    assert r.input_tokens == 0 and r.output_tokens == 0
+
+
+def test_chat_non_success_status_raises():
+    """agy exits 0 even on failures — only explicit SUCCESS is success."""
+    a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
+    with patch("subprocess.run", return_value=_mock_proc(
+            stdout=_agy_json(status="PERMISSION_DENIED"))):
+        with patch("swarph_mesh.adapters.antigravity._audit"):
+            with pytest.raises(AdapterError, match="status="):
+                asyncio.run(a.chat([ChatMessage(role="user", content="x")], model=""))
+
+
+def test_chat_non_json_output_raises():
+    """Pre-`--output-format` agy build or wire-shape change: fail loud, no
+    silent plain-text fallback (that would re-open the #244 capture gap)."""
+    a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
+    with patch("subprocess.run", return_value=_mock_proc(stdout="hello world\n")):
+        with patch("swarph_mesh.adapters.antigravity._audit"):
+            with pytest.raises(AdapterError, match="failed to parse"):
+                asyncio.run(a.chat([ChatMessage(role="user", content="x")], model=""))
 
 
 def test_chat_invokes_through_firejail_with_scrubbed_env(monkeypatch):

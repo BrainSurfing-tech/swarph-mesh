@@ -30,8 +30,16 @@ antigravity OAuth login) = subscription, ``cost_usd=0.0``. ``scrub_env`` strips
 API keys AND ``GOOGLE_APPLICATION_CREDENTIALS`` + project vars (the gap
 ``GeminiCLIAdapter``'s scrub missed) so no metered-billing fallback can fire.
 
-Output is plain text (agy has no JSON/stats mode) → token counts unavailable
-(``input_tokens``/``output_tokens`` = 0). Per-call audit metadata is appended to
+Output (#244): ``--output-format json`` — agy emits a JSON envelope
+(``status`` / ``response`` plus top-level token stats: ``thinking_tokens``,
+``cache_read_tokens``, ``input_tokens``, ``output_tokens``). The adapter maps
+those to the LLMResponse contract fields; absent stats stay ``None``
+("provider did not report it"), a reported 0 stays ``0``. agy reports NO cost
+figure, so ``cost_usd=0.0`` with ``cost_basis="unknown"`` — the honest zero;
+a consumer-side price table may overwrite it as ``"calculated"``. A
+non-``SUCCESS`` status raises: agy exits 0 even on failures, so only an
+explicit SUCCESS is success (fail-closed — a failed call that reads like a
+good one is worse than a loud one). Per-call audit metadata is appended to
 an audit log for the rollout-observation window (the firejail ``--trace`` audit
 is incompatible with ``--seccomp``, so observation happens at this adapter layer).
 """
@@ -46,7 +54,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import AsyncIterator, Optional
+from typing import Any, AsyncIterator, Optional
 
 from swarph_shared import scrub_env_for_subprocess
 
@@ -115,6 +123,34 @@ def _scrubbed_env() -> dict:
     return env
 
 
+def _parse_agy_json(stdout: str) -> dict[str, Any]:
+    """Parse the ``agy -p --output-format json`` envelope.
+
+    Raises :class:`AdapterError` on empty / non-JSON / non-object output —
+    a CLI version mismatch (pre-``--output-format`` build) or wire-shape
+    change the adapter can't recover from. Deliberately NO plain-text
+    fallback: silently returning unparsed stdout would re-open the exact
+    capture gap #244 closes (stats discarded, indistinguishable from
+    "provider did not report").
+    """
+    if not stdout.strip():
+        raise AdapterError("AntigravityAdapter: empty response from agy -p")
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise AdapterError(
+            f"AntigravityAdapter: failed to parse agy --output-format json "
+            f"output: {exc}; first 200 chars: {stdout[:200]!r}. "
+            "(agy build without --output-format support?)"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise AdapterError(
+            f"AntigravityAdapter: expected a JSON object from agy, got "
+            f"{type(payload).__name__}"
+        )
+    return payload
+
+
 def _firejail_argv(firejail_bin: str, agy_bin: str, prompt: str) -> list[str]:
     home = str(Path.home())
     return [
@@ -122,7 +158,9 @@ def _firejail_argv(firejail_bin: str, agy_bin: str, prompt: str) -> list[str]:
         f"--whitelist={home}/.gemini/antigravity-cli",
         f"--whitelist={agy_bin}",
         "--private-tmp", "--caps.drop=all", "--nonewprivs", "--noroot", "--seccomp",
-        agy_bin, "-p", prompt,
+        # #244: JSON envelope carries the token stats (thinking_tokens,
+        # cache_read_tokens) that plain-text output discards.
+        agy_bin, "-p", prompt, "--output-format", "json",
     ]
 
 
@@ -215,7 +253,7 @@ class AntigravityAdapter:
             ) from exc
         duration_s = time.monotonic() - start
 
-        text = (proc.stdout or "").strip()
+        raw_stdout = (proc.stdout or "").strip()
         # Failure path gets a generous 2KB stderr budget (firejail denial
         # patterns may sit far from the tail); success path skips stderr.
         stderr_tail = (proc.stderr or "")[-2048:] if proc.returncode != 0 else ""
@@ -223,7 +261,7 @@ class AntigravityAdapter:
             "ts": time.time(),
             "prompt_sha8": hashlib.sha256(prompt_text.encode()).hexdigest()[:8],
             "exit": proc.returncode, "duration_s": round(duration_s, 2),
-            "resp_len": len(text), "timed_out": timed_out,
+            "resp_len": len(raw_stdout), "timed_out": timed_out,
             "stderr_tail": stderr_tail,
         })
 
@@ -231,21 +269,55 @@ class AntigravityAdapter:
             raise AdapterError(
                 f"AntigravityAdapter exit={proc.returncode}: stderr={stderr_tail!r}"
             )
+
+        payload = _parse_agy_json(raw_stdout)
+
+        # Fail-closed status gate: agy exits 0 even on failures (permission
+        # denials, provider errors), and a non-SUCCESS envelope can still
+        # carry a plausible `response` string. Only explicit SUCCESS is
+        # success; a MISSING status is tolerated (envelope predates the
+        # field) but a present non-SUCCESS one raises.
+        status = str(payload.get("status", "")).upper()
+        if "status" in payload and status != "SUCCESS":
+            raise AdapterError(
+                f"AntigravityAdapter: agy returned status={status!r} "
+                f"(exit=0 is not success for agy)"
+            )
+
+        text = str(payload.get("response") or payload.get("text") or "").strip()
         if not text:
-            raise AdapterError("AntigravityAdapter: empty response from agy -p")
+            raise AdapterError(
+                "AntigravityAdapter: no response text in agy JSON envelope; "
+                f"keys={sorted(payload.keys())!r}"
+            )
+
+        # #244 contract: absent → None ("provider did not report it"),
+        # present → int (a reported 0 stays 0).
+        def _opt(v: Any) -> Optional[int]:
+            return None if v is None else int(v)
+
+        thinking_tokens = _opt(payload.get("thinking_tokens"))
+        cache_read_tokens = _opt(payload.get("cache_read_tokens"))
 
         return LLMResponse(
             text=text,
-            input_tokens=0,   # agy has no stats output
-            output_tokens=0,
-            cost_usd=0.0,     # subscription — flat-rate
+            input_tokens=int(payload.get("input_tokens", 0) or 0),
+            output_tokens=int(payload.get("output_tokens", 0) or 0),
+            thinking_tokens=thinking_tokens,
+            cache_read_tokens=cache_read_tokens,
+            # agy reports no cache-creation split — None, not 0.
+            cost_usd=0.0,
+            # #244: agy reports NO cost figure — "unknown" is the honest
+            # value, not a placeholder. The consumer-side price table may
+            # overwrite with a derived figure as cost_basis="calculated".
+            cost_basis="unknown",
             duration_s=duration_s,
-            cached=False,
+            cached=(cache_read_tokens or 0) > 0,
             raw_response={
                 "billing_path": "subscription",
                 "model": DEFAULT_MODEL,
                 "sandbox": "firejail",
-                "token_stats": "unavailable (agy text-only output)",
+                "session_id": payload.get("session_id"),
                 "net_egress_residual": "open (LLM call needs 443; documented v1)",
             },
         )

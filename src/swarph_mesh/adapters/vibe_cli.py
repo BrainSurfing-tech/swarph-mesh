@@ -498,7 +498,13 @@ class VibeCLIAdapter:
             text=text,
             input_tokens=0,   # vibe --output json carries no usage block
             output_tokens=0,
-            cost_usd=0.0,     # subscription — flat-rate at the mesh layer
+            # #244: token fields stay None — no usage block means "provider
+            # did not report it", which is not a zero.
+            cost_usd=0.0,
+            # #244: vibe tracks a real cost internally (--max-price
+            # interrupts on it) but never reports the number — "unknown"
+            # is the machine-readable form of the cost_per_token note below.
+            cost_basis="unknown",
             duration_s=duration_s,
             cached=False,
             raw_response={

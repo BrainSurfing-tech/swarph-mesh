@@ -81,7 +81,17 @@ def attribution_post_call(
 
     async def _hook(ctx: CallContext, resp: LLMResponse) -> None:
         w = writer or get_default_writer()
-        cached_tokens = (resp.raw_response or {}).get("cached_tokens", 0) if resp.raw_response else 0
+        raw = resp.raw_response or {}
+        cached_tokens = raw.get("cached_tokens", 0)
+        # #244: `raw_response` is documented as stripped before TSDB write, so
+        # billing/audit facts that must SURVIVE to the durable row ride
+        # AttributionEvent.extra. `extra` had been dead since v0.1 — this was
+        # make_event's only caller and it never passed the field.
+        extra = {
+            k: raw[k]
+            for k in ("billing_path", "max_price_usd", "vendor_domicile")
+            if k in raw
+        }
         event = make_event(
             provider=ctx.provider,
             model=ctx.model,
@@ -91,10 +101,16 @@ def attribution_post_call(
             input_tokens=resp.input_tokens,
             output_tokens=resp.output_tokens,
             cached_tokens=int(cached_tokens),
+            thinking_tokens=resp.thinking_tokens,
+            cache_read_tokens=resp.cache_read_tokens,
+            cache_creation_1h=resp.cache_creation_1h,
+            cache_creation_5m=resp.cache_creation_5m,
             cost_usd=resp.cost_usd,
+            cost_basis=resp.cost_basis,
             duration_s=resp.duration_s,
             cached=resp.cached,
             error_class=resp.error_class,
+            extra=extra,
         )
         await w.write(event)
 
