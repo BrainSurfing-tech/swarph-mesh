@@ -9,7 +9,10 @@ from __future__ import annotations
 import asyncio
 import json
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+_FIXTURES = Path(__file__).parent / "fixtures"
 
 import pytest
 
@@ -160,31 +163,75 @@ def test_chat_reported_zero_stays_zero_not_none():
     assert r.cached is False
 
 
-def test_chat_top_level_stats_are_not_read():
+def test_chat_top_level_stats_raise_not_silently_zero():
     """The pre-fix shape assumption: token fields at TOP level, no `usage`.
-    The adapter must NOT read them — a compatibility dual-read would mask
-    the next wire-shape change the way the top-level read masked this one
-    (lab-ovh msg 38001: every field parse-missed while the smoke greened)."""
+    That shape must RAISE, not parse — a compatibility dual-read (or a
+    manufactured-0 default) would mask the next wire-shape change the way
+    the top-level read masked this one (lab-ovh msgs 38001/38009: every
+    field parse-missed while the smoke greened)."""
     a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
     with patch("subprocess.run", return_value=_mock_proc(
             stdout=json.dumps({"status": "SUCCESS", "response": "hi",
                                "thinking_tokens": 21, "cache_read_tokens": 8129,
                                "input_tokens": 12, "output_tokens": 34}))):
         with patch("swarph_mesh.adapters.antigravity._audit"):
-            r = asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
-    assert r.thinking_tokens is None and r.cache_read_tokens is None
-    assert r.input_tokens == 0 and r.output_tokens == 0
+            with pytest.raises(AdapterError, match="usage"):
+                asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
 
 
-def test_chat_absent_stats_stay_none():
+def test_chat_usage_without_token_counts_raises():
+    """`usage` present but input/output unreadable → raise, never default.
+    The default IS the defect (msg 38009): `.get("input_tokens", 0)` would
+    manufacture the same zero one level down."""
     a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
     with patch("subprocess.run", return_value=_mock_proc(
-            stdout=json.dumps({"status": "SUCCESS", "response": "hi"}))):
+            stdout=json.dumps({"status": "SUCCESS", "response": "hi",
+                               "usage": {"thinking_tokens": 5}}))):
+        with patch("swarph_mesh.adapters.antigravity._audit"):
+            with pytest.raises(AdapterError, match="token counts"):
+                asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
+
+
+def test_chat_absent_optional_stats_stay_none():
+    """usage carries the required counts but no thinking/cache keys —
+    the two Optional contract fields stay None ("not reported")."""
+    a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
+    with patch("subprocess.run", return_value=_mock_proc(
+            stdout=json.dumps({"status": "SUCCESS", "response": "hi",
+                               "usage": {"input_tokens": 12, "output_tokens": 34}}))):
         with patch("swarph_mesh.adapters.antigravity._audit"):
             r = asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
     assert r.thinking_tokens is None
     assert r.cache_read_tokens is None
-    assert r.input_tokens == 0 and r.output_tokens == 0
+    assert r.input_tokens == 12 and r.output_tokens == 34
+
+
+@pytest.mark.parametrize("fixture,expect", [
+    ("agy_envelope_pong.json",
+     {"input": 14083, "output": 33, "thinking": 32, "cache_read": 0}),
+    ("agy_envelope_reasoning.json",
+     {"input": 14124, "output": 908, "thinking": 702, "cache_read": 0}),
+])
+def test_chat_parses_recorded_envelope_exactly(fixture, expect):
+    """The CI-runnable can-fail (msg 38009): the smoke's `input_tokens > 0`
+    discriminator only runs where the subscription lane exists, so the
+    RECORDED envelopes (lab-ovh live calls, msgs 38001/38009; usage values
+    exact-measured, conversation_id/duration redacted) are committed and
+    asserted against EXACT values. Fails loudly on both the nesting bug
+    and a manufactured default. Two fixtures because thinking_tokens
+    32 -> 702 pins that thinking VARIES with the work — a measurement,
+    not a constant."""
+    raw = (_FIXTURES / fixture).read_text()
+    a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
+    with patch("subprocess.run", return_value=_mock_proc(stdout=raw)):
+        with patch("swarph_mesh.adapters.antigravity._audit"):
+            r = asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
+    assert r.input_tokens == expect["input"]
+    assert r.output_tokens == expect["output"]
+    assert r.thinking_tokens == expect["thinking"]
+    assert r.cache_read_tokens == expect["cache_read"]  # a REPORTED zero, not absent
+    assert r.cached is False  # cache_read == 0
+    assert r.cost_usd == 0.0 and r.cost_basis == "unknown"
 
 
 def test_chat_non_success_status_raises():

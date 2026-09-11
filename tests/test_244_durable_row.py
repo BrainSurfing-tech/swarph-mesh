@@ -17,7 +17,10 @@ from __future__ import annotations
 import asyncio
 import json
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+_FIXTURES = Path(__file__).parent / "fixtures"
 
 import pytest
 
@@ -177,20 +180,12 @@ def test_durable_row_antigravity_lane_carries_agy_stats(tmp_path):
 
     adapter = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
     row_file = tmp_path / "attribution.jsonl"
-    agy_stdout = json.dumps({
-        "status": "SUCCESS",
-        "response": "gemini answer",
-        # token stats nested under `usage` — the measured envelope
-        # (lab-ovh msg 38001; the top-level shape from msg 37898 was
-        # one nesting level too high)
-        "usage": {
-            "thinking_tokens": 21,
-            "cache_read_tokens": 8129,
-            "input_tokens": 40,
-            "output_tokens": 60,
-            "total_tokens": 100,
-        },
-    })
+    # The RECORDED envelope (lab-ovh live call, msg 38001/38009 — usage
+    # values exact-measured; the top-level shape from msg 37898 was one
+    # nesting level too high). Asserting exact values below makes this the
+    # CI-runnable can-fail the live smoke cannot be (it only runs where
+    # the subscription lane exists).
+    agy_stdout = (_FIXTURES / "agy_envelope_pong.json").read_text()
     try:
         register_adapter("antigravity", adapter)
         sc = SwarphCall(
@@ -206,10 +201,10 @@ def test_durable_row_antigravity_lane_carries_agy_stats(tmp_path):
         reset_registry()
 
     row = _read_single_row(row_file)
-    assert row["thinking_tokens"] == 21
-    assert row["cache_read_tokens"] == 8129
+    assert row["thinking_tokens"] == 32
+    assert row["cache_read_tokens"] == 0  # a REPORTED zero, not an absent one
     assert row["cache_creation_1h"] is None
     assert row["cache_creation_5m"] is None
-    assert row["input_tokens"] == 40 and row["output_tokens"] == 60
+    assert row["input_tokens"] == 14083 and row["output_tokens"] == 33
     assert row["cost_usd"] == 0.0
     assert row["cost_basis"] == "unknown"

@@ -36,9 +36,10 @@ Output (#244): ``--output-format json`` — agy emits a JSON envelope
 ``output_tokens``, ``total_tokens``; measured live twice, lab-ovh msg 38001).
 The adapter maps those to the LLMResponse contract fields; for the two Optional fields
 (``thinking_tokens`` / ``cache_read_tokens``) absent stays ``None``
-("provider did not report it") and a reported 0 stays ``0``, while absent
-``input_tokens``/``output_tokens`` default to the plain-int 0 as on every
-other lane. agy reports NO cost
+("provider did not report it") and a reported 0 stays ``0``. A missing
+``usage`` block or unreadable ``input_tokens``/``output_tokens`` RAISES
+(fail-closed, msg 38009): a manufactured default 0 is the #244 defect,
+not a fallback. agy reports NO cost
 figure, so ``cost_usd=0.0`` with ``cost_basis="unknown"`` — the honest zero;
 a consumer-side price table may overwrite it as ``"calculated"``. A
 non-``SUCCESS`` status raises: agy exits 0 even on failures, so only an
@@ -305,14 +306,32 @@ class AntigravityAdapter:
         # Deliberately NO top-level fallback read: a dual-read would mask
         # the next wire-shape change exactly as the pre-fix top-level read
         # masked this one (every field parse-missed while the smoke greened).
-        usage = payload.get("usage") or {}
+        # Fail-closed on a missing/malformed block (msg 38009): the default
+        # was the defect — `.get("input_tokens", 0)` manufactures the same
+        # zero one level down if agy ever drops or renames `usage`. input/
+        # output are plain ints on LLMResponse, so they RAISE rather than
+        # fall back to a number nobody measured.
+        usage = payload.get("usage")
+        if not isinstance(usage, dict):
+            raise AdapterError(
+                "AntigravityAdapter: no `usage` block in agy JSON envelope "
+                f"(wire-shape change?); top-level keys={sorted(payload.keys())!r}"
+            )
+        try:
+            input_tokens = int(usage["input_tokens"])
+            output_tokens = int(usage["output_tokens"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AdapterError(
+                f"AntigravityAdapter: unreadable token counts in `usage` "
+                f"({exc!r}); usage keys={sorted(usage.keys())!r}"
+            ) from exc
         thinking_tokens = _opt(usage.get("thinking_tokens"))
         cache_read_tokens = _opt(usage.get("cache_read_tokens"))
 
         return LLMResponse(
             text=text,
-            input_tokens=int(usage.get("input_tokens", 0) or 0),
-            output_tokens=int(usage.get("output_tokens", 0) or 0),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             thinking_tokens=thinking_tokens,
             cache_read_tokens=cache_read_tokens,
             # agy reports no cache-creation split — None, not 0.
@@ -327,7 +346,9 @@ class AntigravityAdapter:
                 "billing_path": "subscription",
                 "model": DEFAULT_MODEL,
                 "sandbox": "firejail",
-                "session_id": payload.get("session_id"),
+                # agy's id key is `conversation_id` (measured, msg 38001) —
+                # the old `session_id` read hit a key that does not exist.
+                "conversation_id": payload.get("conversation_id"),
                 "net_egress_residual": "open (LLM call needs 443; documented v1)",
             },
         )
