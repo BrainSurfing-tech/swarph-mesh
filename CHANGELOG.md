@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `swarph-mesh` is the graph-protocol substrate for the swarph-mesh ecosystem — every CLI is a node, the `LLMAdapter` Protocol is the third-party node-implementer contract. Changes to that contract follow strict policy; ordinary feature additions follow ordinary semver.
 
-## [Unreleased]
+## [0.9.0] — 2026-09-11
 
 ### Added — #244 cost-basis + token-capture contract
 
@@ -17,6 +17,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **GeminiCLIAdapter** maps stats `thoughts` → `thinking_tokens`, `cached` → `cache_read_tokens` (None-aware aggregation across models). **grok-cli / vibe-cli**: explicit `cost_basis="unknown"`, token fields stay `None` (no stats output). **Metered adapters** (gemini/deepseek/openai/grok): `cost_basis="metered"` so real metered rows don't read as `"unknown"` (value-drift guard; one line each).
 - **`extra` is no longer a dead field** — `attribution_post_call` (its only `make_event` caller) now passes `{billing_path, max_price_usd, vendor_domicile}` harvested from `raw_response`, which is stripped before TSDB write; the durable row is the only carrier. Proven by the new can-fail suite `test_244_durable_row.py`: real hook → real writer → assertions on the WRITTEN JSONL row, never the adapter return.
 - **JSON-harness retry fold is None-aware** for the four new fields (`swarph_call.py`) — a schema retry no longer undercounts thinking/cache in the durable row (same defect class as the v0.7.8 retry-spend fold, one field-generation later).
+
+### Fixed — #823 fail-closed binary resolution
+
+- **Binary resolution fails closed — `which(X) or <fallback>` removed from all six sites.** `shutil.which("firejail") or "/usr/bin/firejail"` MANUFACTURED a plausible path when the binary was absent, turning "not installed" into a 5ms `FileNotFoundError` deep in `subprocess` that reads as a flaky worker — 828 failures over sixteen days, invisible because a 5ms failure contributes no duration to any latency percentile. New `BinaryNotFound(AdapterError, RuntimeError)` raised at resolve time by a shared `which_or_raise`, naming the binary, EVERY location searched (marking an absent home path `(absent)`), the env-var override and the remedy. Six sites, not the three first reported: `antigravity`/`grok_cli`/`vibe_cli` each had a firejail fallback AND a `which(X) or str(home_local)` twin that a grep for the hardcoded literal could not see (card #823). Verified on a box where both binaries exist by modelling absence as data — `PATH` emptied in-process and `HOME` faked — since the defect is undetectable wherever the guess is accidentally right.
 
 ### Foundations sprint queue
 

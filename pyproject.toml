@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.8.0"
+version = "0.9.0"
 description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.8.0 adds the VibeCLIAdapter (provider 'vibe-cli'): the EU-domiciled SUBSCRIPTION Mistral lane via firejail-sandboxed `vibe -p`, with a --max-price hard cost ceiling enforced per call, no tools at all, an ephemeral VIBE_HOME (stateless by construction), the prompt piped on stdin so it never touches disk, and a declared-not-attested jurisdiction attribute for residency-aware routing."
 readme = "README.md"
 license = { text = "MIT" }
