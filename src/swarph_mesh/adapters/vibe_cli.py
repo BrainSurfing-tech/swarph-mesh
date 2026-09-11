@@ -48,13 +48,17 @@ inside the EU. That fact is carried as ``raw_response["vendor_domicile"] = "FR"`
     human confirms the DPA terms. A field claiming ``gdpr_compliant`` — or a
     bare ``"eu"`` — would assert something this process cannot see.
 
-    AND NOTE WHERE THESE LIVE: ``raw_response`` is documented in ``types.py`` as
-    a debug payload **stripped before TSDB write**. So these are diagnostics, not
-    a durable audit trail. An earlier revision advertised this payload as a
-    surface a router or an audit could query — false for exactly the durable
-    consumers that would need it, since the row they read never carries it.
-    Anything that must survive to the attribution row belongs in
-    ``AttributionEvent.extra``, not here.
+    AND NOTE WHERE THESE LIVE: ``raw_response`` is documented in ``types.py``
+    as a debug payload **stripped before TSDB write** — diagnostics, not a
+    durable audit trail — with one #244 exception: ``attribution_post_call``
+    (hooks.py) harvests exactly ``{billing_path, max_price_usd,
+    vendor_domicile}`` from it into ``AttributionEvent.extra``, the durable
+    row's only carrier. >>> THOSE THREE KEY NAMES ARE LOAD-BEARING: renaming
+    or removing them here silently breaks the row-level harvest. <<< The
+    residency fields (``processing_residency`` / ``_attested``) are NOT in
+    the harvest set, so the row carries ``vendor_domicile`` alone — a row
+    consumer must apply this docstring's rule itself: domicile is a fact
+    about the company, never a data-residency or routing-eligibility signal.
 
 **CRITICAL — vibe is AGENTIC**, so the same containment posture as the grok-cli
 lane applies. Two things make this lane STRICTLY TIGHTER than that one:
@@ -498,7 +502,13 @@ class VibeCLIAdapter:
             text=text,
             input_tokens=0,   # vibe --output json carries no usage block
             output_tokens=0,
-            cost_usd=0.0,     # subscription — flat-rate at the mesh layer
+            # #244: token fields stay None — no usage block means "provider
+            # did not report it", which is not a zero.
+            cost_usd=0.0,
+            # #244: vibe tracks a real cost internally (--max-price
+            # interrupts on it) but never reports the number — "unknown"
+            # is the machine-readable form of the cost_per_token note below.
+            cost_basis="unknown",
             duration_s=duration_s,
             cached=False,
             raw_response={

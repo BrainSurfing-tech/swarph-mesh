@@ -327,8 +327,10 @@ def test_chat_extracts_usage_from_response():
     assert resp.text == "response text"
     assert resp.input_tokens == 200
     assert resp.output_tokens == 100
-    # Subscription path → cost_usd is ALWAYS 0.0
-    assert resp.cost_usd == 0.0
+    # #244: the CLI's own list-price figure is carried, labeled — no
+    # longer overwritten with 0.0 (the mock payload sets 0.001).
+    assert resp.cost_usd == pytest.approx(0.001)
+    assert resp.cost_basis == "list"
     assert resp.duration_s >= 0
     # Metered-equivalent cost preserved in raw_response
     assert resp.raw_response["billing_path"] == "subscription"
@@ -353,8 +355,9 @@ def test_chat_marks_cached_when_cache_read_nonzero():
 
 
 def test_chat_uses_total_cost_usd_when_present():
-    """When claude -p surfaces total_cost_usd, prefer it over the
-    PRICING-table compute (catches model-tier + caching exactly)."""
+    """#244: when claude -p surfaces total_cost_usd it is carried as the
+    response's OWN cost (basis "list"), while raw_response keeps the LOCAL
+    table figure as an independent cross-check — not an echo of the CLI."""
     a = ClaudeAdapter(claude_bin="/fake/claude")
     a._verified = True
     with patch(
@@ -367,7 +370,68 @@ def test_chat_uses_total_cost_usd_when_present():
                 model="claude-opus-4-7",
             )
         )
-    assert resp.raw_response["api_metered_cost_usd"] == pytest.approx(0.0042)
+    assert resp.cost_usd == pytest.approx(0.0042)
+    assert resp.cost_basis == "list"
+    # cross-check stays table-computed: 100 in + 50 out at (5.00, 25.00)/Mtok
+    expected_table = (100 / 1_000_000) * 5.00 + (50 / 1_000_000) * 25.00
+    assert resp.raw_response["api_metered_cost_usd"] == pytest.approx(expected_table)
+
+
+def test_chat_maps_thinking_and_cache_split_244():
+    """#244 token-capture: the measured claude -p payload shape (card #244
+    msg 37895) — thinking from usage.output_tokens_details, the cache
+    split from usage.cache_creation's TTL tiers. Reported zeros stay 0."""
+    a = ClaudeAdapter(claude_bin="/fake/claude")
+    a._verified = True
+    payload = {
+        "result": "ok",
+        "is_error": False,
+        "usage": {
+            "input_tokens": 4,
+            "output_tokens": 190,
+            "cache_read_input_tokens": 13547,
+            "cache_creation_input_tokens": 48443,
+            "cache_creation": {
+                "ephemeral_1h_input_tokens": 48443,
+                "ephemeral_5m_input_tokens": 0,
+            },
+            "output_tokens_details": {"thinking_tokens": 0},
+        },
+        "total_cost_usd": 0.48549,
+        "session_id": "sid-244",
+    }
+    proc = MagicMock(spec=subprocess.CompletedProcess)
+    proc.returncode = 0
+    proc.stdout = json.dumps(payload)
+    proc.stderr = ""
+    with patch("subprocess.run", return_value=proc):
+        resp = asyncio.run(
+            a.chat(messages=[ChatMessage(role="user", content="x")],
+                   model="claude-opus-4-7")
+        )
+    assert resp.thinking_tokens == 0        # reported zero — NOT None
+    assert resp.cache_read_tokens == 13547
+    assert resp.cache_creation_1h == 48443
+    assert resp.cache_creation_5m == 0      # reported zero — NOT None
+    assert resp.cost_usd == pytest.approx(0.48549)
+    assert resp.cost_basis == "list"
+
+
+def test_chat_absent_token_details_stay_none_244():
+    """Older CLI payloads without output_tokens_details / cache_creation:
+    the fields stay None ("provider did not report it"), never 0."""
+    a = ClaudeAdapter(claude_bin="/fake/claude")
+    a._verified = True
+    with patch("subprocess.run", return_value=_mock_subprocess_response()):
+        resp = asyncio.run(
+            a.chat(messages=[ChatMessage(role="user", content="x")],
+                   model="claude-opus-4-7")
+        )
+    assert resp.thinking_tokens is None
+    assert resp.cache_creation_1h is None
+    assert resp.cache_creation_5m is None
+    # cache_read_input_tokens IS present in the mock (0) → reported zero
+    assert resp.cache_read_tokens == 0
 
 
 def test_chat_falls_back_to_pricing_when_total_cost_usd_missing(caplog):
@@ -416,8 +480,10 @@ def test_chat_falls_back_to_pricing_when_total_cost_usd_missing(caplog):
     #                  = 0.001 + 0.0025 = 0.0035
     expected = (200 / 1_000_000) * 5.00 + (100 / 1_000_000) * 25.00
     assert resp.raw_response["api_metered_cost_usd"] == pytest.approx(expected)
-    # And subscription cost remains 0.0 regardless of fallback
+    # #244: no CLI figure → 0.0 with cost_basis="unknown", never a
+    # synthesised number in cost_usd (the table figure stays raw-only).
     assert resp.cost_usd == 0.0
+    assert resp.cost_basis == "unknown"
 
 
 def test_chat_raises_on_nonzero_exit():

@@ -28,10 +28,13 @@ Token + cost tracking:
 
 ``-o json`` returns ``{"session_id", "response", "stats"}`` where
 ``stats.models.<model>.tokens`` carries ``{prompt, candidates, cached,
-...}`` per model (the CLI may invoke a utility-router model plus the
-main model). We aggregate ``prompt`` as input and ``candidates`` as
-output across all models. ``cost_usd`` is **0.0** (subscription =
-flat-rate); metered-equivalent lives in
+thoughts, ...}`` per model (the CLI may invoke a utility-router model plus
+the main model). We aggregate ``prompt`` as input and ``candidates`` as
+output across all models; ``thoughts`` maps to ``thinking_tokens`` and
+``cached`` to ``cache_read_tokens`` (#244 — a key no model reports stays
+``None``, a reported 0 stays ``0``). ``cost_usd`` is **0.0** with
+``cost_basis="unknown"`` (the CLI reports no cost figure for the
+subscription path); the metered-equivalent lives in
 ``raw_response["api_metered_cost_usd"]`` for auditors.
 """
 
@@ -151,21 +154,38 @@ def _parse_gemini_json(stdout: str) -> dict[str, Any]:
         ) from exc
 
 
-def _aggregate_tokens(stats: dict[str, Any]) -> tuple[int, int, int]:
-    """Sum (input, output, cached) tokens across every model in ``stats``.
+def _aggregate_tokens(
+    stats: dict[str, Any],
+) -> tuple[int, int, Optional[int], Optional[int]]:
+    """Sum (input, output, cached, thoughts) tokens across every model in
+    ``stats``.
 
     The CLI may invoke multiple models per call (e.g. a utility-router
     plus the main model); honest accounting sums them. ``prompt`` is the
     billed input count (includes cached); ``candidates`` is the output.
+
+    #244: ``cached`` and ``thoughts`` are Optional — ``None`` when NO model
+    reported the key ("provider did not report it"), an int sum otherwise
+    (a reported 0 stays 0). The two must not collapse.
     """
     models = (stats or {}).get("models") or {}
-    inp = out = cached = 0
+    inp = out = 0
+    cached: Optional[int] = None
+    thoughts: Optional[int] = None
     for m in models.values():
         tok = (m or {}).get("tokens") or {}
         inp += int(tok.get("prompt", tok.get("input", 0)) or 0)
         out += int(tok.get("candidates", 0) or 0)
-        cached += int(tok.get("cached", 0) or 0)
-    return inp, out, cached
+        # A key present with value null is "did not report", same as absent
+        # — only a real number counts as reported (matches _opt in the
+        # claude/antigravity lanes; null → 0 is the forbidden collapse).
+        cached_v = tok.get("cached")
+        if cached_v is not None:
+            cached = (cached or 0) + int(cached_v)
+        thoughts_v = tok.get("thoughts")
+        if thoughts_v is not None:
+            thoughts = (thoughts or 0) + int(thoughts_v)
+    return inp, out, cached, thoughts
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +317,7 @@ class GeminiCLIAdapter:
 
         text = payload.get("response", "") or ""
         stats = payload.get("stats") or {}
-        input_tokens, output_tokens, cached = _aggregate_tokens(stats)
+        input_tokens, output_tokens, cached, thoughts = _aggregate_tokens(stats)
 
         # Pick the primary model name for pricing: the model the caller
         # Prefer the model the gemini CLI ACTUALLY ran (stats) over the caller-
@@ -319,14 +339,22 @@ class GeminiCLIAdapter:
             text=text,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            cost_usd=0.0,  # subscription path — flat-rate, not per-call
+            thinking_tokens=thoughts,
+            cache_read_tokens=cached,
+            # gemini CLI stats carry no cache-creation split — None, not 0.
+            cost_usd=0.0,
+            # #244: the CLI reports no cost figure for the subscription path
+            # — "unknown" is the honest value (the metered-equivalent stays
+            # in raw_response as an audit figure, not a cost claim). The
+            # consumer-side price table may overwrite as "calculated".
+            cost_basis="unknown",
             duration_s=duration_s,
-            cached=cached > 0,
+            cached=(cached or 0) > 0,
             raw_response={
                 "billing_path": "subscription",
                 "model": priced_model,
                 "session_id": payload.get("session_id"),
-                "cached_tokens": cached,
+                "cached_tokens": cached or 0,
                 "api_metered_cost_usd": api_metered_cost_usd,
                 "models_invoked": list((stats.get("models") or {}).keys()),
             },

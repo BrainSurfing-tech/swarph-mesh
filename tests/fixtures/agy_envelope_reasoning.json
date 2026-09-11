@@ -1,0 +1,14 @@
+{
+  "status": "SUCCESS",
+  "response": "The answer is 42, and here is the reasoning: redacted-by-lab-ovh",
+  "conversation_id": "redacted-by-lab-ovh",
+  "num_turns": 1,
+  "duration_seconds": 18.0,
+  "usage": {
+    "input_tokens": 14124,
+    "output_tokens": 908,
+    "thinking_tokens": 702,
+    "cache_read_tokens": 0,
+    "total_tokens": 15032
+  }
+}

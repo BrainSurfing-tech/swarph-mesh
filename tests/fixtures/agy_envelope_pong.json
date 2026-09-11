@@ -1,0 +1,14 @@
+{
+  "status": "SUCCESS",
+  "response": "pong",
+  "conversation_id": "redacted-by-lab-ovh",
+  "num_turns": 1,
+  "duration_seconds": 6.0,
+  "usage": {
+    "input_tokens": 14083,
+    "output_tokens": 33,
+    "thinking_tokens": 32,
+    "cache_read_tokens": 0,
+    "total_tokens": 14116
+  }
+}

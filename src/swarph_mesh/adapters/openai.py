@@ -226,6 +226,10 @@ class OpenAIAdapter:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost,
+            # #244: real per-token billing on this lane — but when the SDK
+            # returned no usage block the 0.0 above is UNMEASURED, and
+            # "metered" beside it would claim a measured zero bill.
+            cost_basis="metered" if usage is not None else "unknown",
             duration_s=duration_s,
             cached=cached_tokens > 0,
             raw_response={

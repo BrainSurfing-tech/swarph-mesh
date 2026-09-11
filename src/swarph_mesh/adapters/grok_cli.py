@@ -328,7 +328,11 @@ class GrokCLIAdapter:
             text=text,
             input_tokens=0,   # grok CLI has no stats output
             output_tokens=0,
-            cost_usd=0.0,     # subscription — flat-rate
+            # #244: token fields stay None — the CLI reports no stats at
+            # all ("provider did not report it"), which is not a zero.
+            cost_usd=0.0,
+            # #244: no cost figure either — "unknown", the honest zero.
+            cost_basis="unknown",
             duration_s=duration_s,
             cached=False,
             raw_response={

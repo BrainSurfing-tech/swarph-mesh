@@ -195,6 +195,25 @@ class SwarphCall:
                 resp.input_tokens += r.input_tokens
                 resp.output_tokens += r.output_tokens
                 resp.cost_usd += r.cost_usd
+                # #244: fold the Optional token fields the same way, None-aware
+                # — if neither leg reported a quantity it stays None; otherwise
+                # the row carries the sum of what WAS reported. Skipping this
+                # re-creates the undercount above, one field-generation later.
+                for f in (
+                    "thinking_tokens",
+                    "cache_read_tokens",
+                    "cache_creation_1h",
+                    "cache_creation_5m",
+                ):
+                    rv = getattr(r, f)
+                    if rv is not None:
+                        setattr(resp, f, (getattr(resp, f) or 0) + rv)
+                # If the first leg had no cost figure but a retry leg did,
+                # adopt the retry's basis — otherwise the summed nonzero
+                # cost would sit beside "unknown", the pairing the #244
+                # contract defines as impossible.
+                if resp.cost_basis == "unknown" and r.cost_basis != "unknown":
+                    resp.cost_basis = r.cost_basis
 
         # Post-call hooks (attribution writer included by default)
         for hook in self.hooks.post_call:

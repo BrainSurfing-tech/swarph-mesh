@@ -5,7 +5,8 @@ falsifiability gate per PLAN.md §13:
         ChatMessage(role="user", content="hi")
     ])
     → returns text via subscription billing (claude -p path)
-    → writes attribution row with cost_usd=0 (subscription is flat-rate)
+    → writes attribution row with a LABELED cost (#244: the CLI's own
+      total_cost_usd as cost_basis="list", or 0.0 + "unknown" on older CLIs)
 
 Gated on:
 - ``~/.claude/.credentials.json`` existing + readable
@@ -79,8 +80,13 @@ def test_phase_4_claude_falsifiability_gate(tmp_path):
     assert resp.input_tokens > 0
     assert resp.output_tokens > 0
 
-    # 3. Subscription path → cost_usd is ALWAYS 0.0 (flat-rate, not metered)
-    assert resp.cost_usd == 0.0
+    # 3. #244 cost contract: a modern CLI reports its own list-price figure
+    # (total_cost_usd → cost_basis="list"); an older CLI reports nothing
+    # (0.0 + "unknown"). Never a bare unlabeled zero, never a negative.
+    assert resp.cost_usd >= 0.0
+    assert resp.cost_basis in ("list", "unknown")
+    if resp.cost_basis == "unknown":
+        assert resp.cost_usd == 0.0  # no figure → never a synthesised number
 
     # 4. Metered-equivalent cost preserved in raw_response for auditors
     assert resp.raw_response["billing_path"] == "subscription"
@@ -90,8 +96,8 @@ def test_phase_4_claude_falsifiability_gate(tmp_path):
     # 5. Latency measured
     assert resp.duration_s > 0
 
-    # 6. Attribution row written with cost_usd=0 (honest subscription
-    # report)
+    # 6. Attribution row written; the durable row carries the same labeled
+    # cost the response reported (#244: the row is the proof, not the resp)
     assert attribution_path.exists()
     lines = attribution_path.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 1
@@ -99,6 +105,7 @@ def test_phase_4_claude_falsifiability_gate(tmp_path):
     assert row["provider"] == "claude"
     assert row["caller"] == "cli.smoke.phase_4_claude_gate"
     assert row["role"] == "agents"
-    assert row["cost_usd"] == 0.0  # subscription path is flat-rate
+    assert row["cost_usd"] == resp.cost_usd
+    assert row["cost_basis"] == resp.cost_basis
     assert row["input_tokens"] == resp.input_tokens
     assert row["output_tokens"] == resp.output_tokens

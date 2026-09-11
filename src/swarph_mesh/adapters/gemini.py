@@ -162,8 +162,10 @@ class GeminiAdapter:
             ) from exc
         duration_s = time.monotonic() - start
 
-        # Extract usage from the AIMessage
-        usage = getattr(ai_message, "usage_metadata", None) or {}
+        # Extract usage from the AIMessage. Keep the raw getattr separate:
+        # #244 needs to distinguish "no usage reported" from "reported zeros".
+        usage_meta = getattr(ai_message, "usage_metadata", None)
+        usage = usage_meta or {}
         input_tokens = int(usage.get("input_tokens", 0))
         output_tokens = int(usage.get("output_tokens", 0))
         cached_tokens_dict = usage.get("input_token_details", {}) or {}
@@ -176,6 +178,9 @@ class GeminiAdapter:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost,
+            # #244: real per-token billing — but a missing usage block means
+            # the 0.0 is UNMEASURED; "metered" would claim a measured zero.
+            cost_basis="metered" if usage_meta is not None else "unknown",
             duration_s=duration_s,
             cached=cached_tokens > 0,
             raw_response={

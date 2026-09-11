@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added — #244 cost-basis + token-capture contract
+
+- **`LLMResponse` + `AttributionEvent` gain four `Optional[int]` fields** — `thinking_tokens`, `cache_read_tokens`, `cache_creation_1h`, `cache_creation_5m`. **`None` = "provider did not report it"; `0` = "reported zero"** — the per-field known-ness that closes #244's original defect. New fields, no existing consumers, no migration; legacy `cached_tokens` int unchanged.
+- **`cost_basis`** — `"metered" | "list" | "calculated" | "free" | "unknown"` beside the (type-unchanged) `cost_usd` float. A `0.0` beside `"unknown"` can no longer be aggregated as measured free usage. No swarph-mesh adapter emits `"calculated"`: that is the consumer-side value, written when a price table derives a figure (decision recorded on card #244).
+- **ClaudeAdapter stops discarding the CLI's own cost figure**: `cost_usd` now carries `total_cost_usd` with `cost_basis="list"` (the CLI's own label); absent → `0.0` + `"unknown"`. Maps `usage.output_tokens_details.thinking_tokens` + the `usage.cache_creation` 1h/5m TTL split.
+- **AntigravityAdapter switches to `agy -p --output-format json`** — captures `thinking_tokens` / `cache_read_tokens` from agy's `usage` block (previously discarded as plain text; the fields nest under `usage`, measured live — lab-ovh msg 38001), fail-closed on a non-`SUCCESS` envelope status (agy exits 0 on failures) AND on a missing/unreadable `usage` block (a defaulted 0 is a manufactured figure, not a measurement — msg 38009). Recorded live envelopes committed as `tests/fixtures/agy_envelope_*.json` and asserted against exact measured values (the CI-runnable can-fail); the gated live smoke (`test_smoke_antigravity.py`) keeps the lane-side discriminator `input_tokens > 0` and remains the only gate that catches agy changing its envelope.
+- **GeminiCLIAdapter** maps stats `thoughts` → `thinking_tokens`, `cached` → `cache_read_tokens` (None-aware aggregation across models). **grok-cli / vibe-cli**: explicit `cost_basis="unknown"`, token fields stay `None` (no stats output). **Metered adapters** (gemini/deepseek/openai/grok): `cost_basis="metered"` so real metered rows don't read as `"unknown"` (value-drift guard; one line each).
+- **`extra` is no longer a dead field** — `attribution_post_call` (its only `make_event` caller) now passes `{billing_path, max_price_usd, vendor_domicile}` harvested from `raw_response`, which is stripped before TSDB write; the durable row is the only carrier. Proven by the new can-fail suite `test_244_durable_row.py`: real hook → real writer → assertions on the WRITTEN JSONL row, never the adapter return.
+- **JSON-harness retry fold is None-aware** for the four new fields (`swarph_call.py`) — a schema retry no longer undercounts thinking/cache in the durable row (same defect class as the v0.7.8 retry-spend fold, one field-generation later).
+
 ### Foundations sprint queue
 
 > **Renumber note (2026-05-21):** the queued node-implementer guide slot shifted v0.7.5 → v0.7.6 (and transport-agnostic mesh → v0.7.7) because v0.7.5 shipped the GeminiCLIAdapter — built, tested, and ready ahead of the guide. Shipped-and-tested takes the lower number; the planned ordering below is otherwise unchanged.

@@ -29,10 +29,21 @@ Token + cost tracking:
 We use ``--output-format=json`` to get a structured response with usage
 counts on every call. ``LLMResponse.input_tokens`` /
 ``LLMResponse.output_tokens`` are populated from ``usage.input_tokens`` /
-``usage.output_tokens`` on the response. ``cost_usd`` is set to **0.0**
-because subscription billing is flat-rate, not per-call. The
-metered-equivalent cost is preserved in ``raw_response["api_metered_cost_usd"]``
-for auditors who want to compare "what would this have cost on the API?".
+``usage.output_tokens``; ``thinking_tokens`` from
+``usage.output_tokens_details.thinking_tokens``; the cache split from
+``usage.cache_read_input_tokens`` + ``usage.cache_creation.ephemeral_1h/5m``
+(#244 — absent fields stay ``None``, reported zeros stay ``0``).
+
+Cost (#244): the CLI computes a REAL list-price figure for the subscription
+path — ``total_cost_usd`` — and this adapter used to write ``0.0`` over it.
+It now carries that figure with ``cost_basis="list"`` — the label assigned
+by the settled #244 contract; the CLI itself uses the same word in
+``modelUsage[*].costBasis`` (measured, card #244 msg 37895), which this
+adapter does not read. When an older CLI omits ``total_cost_usd`` the
+adapter reports ``cost_usd=0.0`` with ``cost_basis="unknown"`` — never a
+synthesised number. ``raw_response["api_metered_cost_usd"]`` is always the
+LOCAL table's figure, so it stays an independent cross-check against the
+CLI's number rather than an echo of it.
 """
 
 from __future__ import annotations
@@ -98,9 +109,9 @@ def _resolve_claude_bin() -> str:
 # v0.6.1 catch-up: extended with full Anthropic lineup verified
 # against claude.com/pricing on 2026-05-09. Subset of the full table
 # in swarph_mesh.discovery._ANTHROPIC_PRICING (which carries cache +
-# batch dimensions). LLMResponse.cost_usd is always 0.0 for this
-# adapter since subscription billing is flat-rate; this table only
-# populates ``raw_response["api_metered_cost_usd"]``.
+# batch dimensions). Since #244 LLMResponse.cost_usd carries the CLI's
+# own total_cost_usd (cost_basis="list"); this table only populates
+# ``raw_response["api_metered_cost_usd"]`` as a cross-check figure.
 #
 # Includes dated-build aliases so AIMLAPI catalog IDs (e.g.
 # ``claude-opus-4-1-20250805``) resolve to PRICING without falling
@@ -333,24 +344,41 @@ class ClaudeAdapter:
         usage = payload.get("usage") or {}
         input_tokens = int(usage.get("input_tokens", 0) or 0)
         output_tokens = int(usage.get("output_tokens", 0) or 0)
-        cache_read = int(usage.get("cache_read_input_tokens", 0) or 0)
-        cache_creation = int(usage.get("cache_creation_input_tokens", 0) or 0)
 
-        # Subscription path is flat-rate — actual billing is the user's
-        # subscription, not per-call. cost_usd = 0.0 reports honestly to
-        # the attribution writer + downstream cost dashboards.
-        # Metered-equivalent cost (what this would have cost on API) lives
-        # in raw_response for auditors who want the comparison.
+        # #244 contract: absent → None ("provider did not report it"),
+        # present → int (a reported 0 stays 0). The two must not collapse.
+        def _opt(v: Any) -> Optional[int]:
+            return None if v is None else int(v)
+
+        cache_read = _opt(usage.get("cache_read_input_tokens"))
+        # Legacy total (pre-TTL-split CLIs); kept in raw_response only.
+        cache_creation_total = int(usage.get("cache_creation_input_tokens", 0) or 0)
+        cache_creation = usage.get("cache_creation") or {}
+        cache_creation_1h = _opt(cache_creation.get("ephemeral_1h_input_tokens"))
+        cache_creation_5m = _opt(cache_creation.get("ephemeral_5m_input_tokens"))
+        thinking_tokens = _opt(
+            (usage.get("output_tokens_details") or {}).get("thinking_tokens")
+        )
+
+        # Metered-equivalent cross-check (what this would have cost on the
+        # API at this table's rates) — raw_response only, for auditors.
+        # Deliberately NOT overwritten by total_cost_usd below: an echo of
+        # the CLI's own number would be a cross-check with no zero point.
         in_per_mtok, out_per_mtok = PRICING.get(model, PRICING["_default"])
         api_metered_cost_usd = (
             (input_tokens / 1_000_000.0) * in_per_mtok
             + (output_tokens / 1_000_000.0) * out_per_mtok
         )
-        # Some claude -p versions surface `total_cost_usd` directly; prefer
-        # that when present (already accounts for model-tier + caching).
+        # #244: the CLI computes a real list-price figure for subscription
+        # consumption (accounts for model tier + caching + session context).
+        # Carry it with the CLI's own label instead of writing 0.0 over it;
+        # absent (older CLI) → 0.0 + "unknown", never a synthesised number.
+        cost_usd = 0.0
+        cost_basis = "unknown"
         if "total_cost_usd" in payload:
             try:
-                api_metered_cost_usd = float(payload["total_cost_usd"])
+                cost_usd = float(payload["total_cost_usd"])
+                cost_basis = "list"
             except (TypeError, ValueError):
                 pass
 
@@ -358,18 +386,26 @@ class ClaudeAdapter:
             text=text,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            cost_usd=0.0,  # subscription path — flat-rate, not per-call
+            thinking_tokens=thinking_tokens,
+            cache_read_tokens=cache_read,
+            cache_creation_1h=cache_creation_1h,
+            cache_creation_5m=cache_creation_5m,
+            cost_usd=cost_usd,
+            cost_basis=cost_basis,
             duration_s=duration_s,
-            cached=cache_read > 0,
+            cached=(cache_read or 0) > 0,
             raw_response={
                 "billing_path": "subscription",
                 "model": model,
                 "session_id": payload.get("session_id"),
                 "stop_reason": payload.get("stop_reason"),
-                "cache_read_tokens": cache_read,
-                "cache_creation_tokens": cache_creation,
+                "cache_read_tokens": cache_read or 0,
+                "cache_creation_tokens": cache_creation_total,
                 "api_metered_cost_usd": api_metered_cost_usd,
                 "duration_api_ms": payload.get("duration_api_ms"),
+                # Per-model breakdown (primary + any routing/aux model) —
+                # debug payload; raw_response is stripped before TSDB write.
+                "model_usage": payload.get("modelUsage"),
             },
         )
 

@@ -41,7 +41,18 @@ class AttributionEvent:
     input_tokens: int
     output_tokens: int
     cached_tokens: int = 0
+    # #244 token-capture contract — new fields, no existing consumers.
+    # None = "this provider did not report it"; 0 = "reported zero". The
+    # legacy `cached_tokens` int stays as-is for existing readers.
+    thinking_tokens: Optional[int] = None
+    cache_read_tokens: Optional[int] = None
+    cache_creation_1h: Optional[int] = None
+    cache_creation_5m: Optional[int] = None
     cost_usd: float = 0.0
+    # #244: how cost_usd was established — "metered" | "list" | "calculated"
+    # | "free" | "unknown". A 0.0 beside "unknown" must never be summed as
+    # measured free usage. See types.LLMResponse.cost_basis for value docs.
+    cost_basis: str = "unknown"
     duration_s: float = 0.0
     cached: bool = False
     error_class: Optional[str] = None
@@ -116,7 +127,12 @@ def make_event(
     input_tokens: int,
     output_tokens: int,
     cached_tokens: int = 0,
+    thinking_tokens: Optional[int] = None,
+    cache_read_tokens: Optional[int] = None,
+    cache_creation_1h: Optional[int] = None,
+    cache_creation_5m: Optional[int] = None,
     cost_usd: float = 0.0,
+    cost_basis: str = "unknown",
     duration_s: float = 0.0,
     cached: bool = False,
     error_class: Optional[str] = None,
@@ -133,7 +149,12 @@ def make_event(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cached_tokens=cached_tokens,
+        thinking_tokens=thinking_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_creation_1h=cache_creation_1h,
+        cache_creation_5m=cache_creation_5m,
         cost_usd=cost_usd,
+        cost_basis=cost_basis,
         duration_s=duration_s,
         cached=cached,
         error_class=error_class,
