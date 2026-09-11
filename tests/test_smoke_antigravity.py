@@ -28,13 +28,20 @@ from swarph_mesh.adapters.antigravity import (
     _resolve_firejail_bin,
 )
 from swarph_mesh.attribution import FileAttributionWriter
+from swarph_mesh.exceptions import BinaryNotFound
 from swarph_mesh.hooks import default_hooks
 
 
 def _can_run_smoke() -> bool:
-    if not Path(_resolve_agy_bin()).exists():
-        return False
-    if not Path(_resolve_firejail_bin()).exists():
+    # #823: resolution now RAISES when a binary is absent, and this gate
+    # runs at collection time (pytestmark) — absence must read as "skip",
+    # not crash collection on lane-less boxes.
+    try:
+        if not Path(_resolve_agy_bin()).exists():
+            return False
+        if not Path(_resolve_firejail_bin()).exists():
+            return False
+    except BinaryNotFound:
         return False
     token = Path.home() / ".gemini" / "antigravity-cli" / "antigravity-oauth-token"
     return token.exists()

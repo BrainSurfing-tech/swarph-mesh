@@ -264,8 +264,13 @@ def test_cost_per_token_is_zero_subscription():
 
 # --- registry wiring ---
 
-def test_registry_resolves_grok_cli():
+def test_registry_resolves_grok_cli(monkeypatch):
     from swarph_mesh.adapters import get_adapter, reset_registry
+
+    # #823: construction now fail-closes on missing binaries, so pin
+    # overrides for boxes (CI) that have neither grok nor firejail.
+    monkeypatch.setenv("GROK_BIN", "/custom/grok")
+    monkeypatch.setenv("FIREJAIL_BIN", "/custom/firejail")
     try:
         a = get_adapter("grok-cli")
         assert a.name == "grok-cli"

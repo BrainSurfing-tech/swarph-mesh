@@ -144,6 +144,7 @@ from typing import AsyncIterator, Optional
 
 from swarph_shared import scrub_env_for_subprocess
 
+from swarph_mesh.adapters._resolve import which_or_raise
 from swarph_mesh.exceptions import AdapterError
 from swarph_mesh.types import ChatMessage, LLMResponse
 
@@ -229,13 +230,15 @@ def _resolve_vibe_bin() -> str:
         # Resolve the shim to its real venv target so the firejail whitelist can
         # be derived from the interpreter's own tree.
         return str(home_local.resolve())
-    return shutil.which("vibe") or str(home_local)
+    return which_or_raise(
+        "vibe", env_var="VIBE_BIN", checked=(str(uv_tool), str(home_local))
+    )
 
 
 def _resolve_firejail_bin() -> str:
     if os.environ.get("FIREJAIL_BIN"):
         return os.environ["FIREJAIL_BIN"]
-    return shutil.which("firejail") or "/usr/bin/firejail"
+    return which_or_raise("firejail", env_var="FIREJAIL_BIN")
 
 
 def _venv_root(vibe_bin: str) -> str:

@@ -15,6 +15,13 @@ class AdapterError(SwarphMeshError):
     want to react to specific provider failures."""
 
 
+class BinaryNotFound(AdapterError, RuntimeError):
+    """A CLI-lane binary could not be resolved (#823). Raised at resolve
+    time — never after a manufactured path reaches subprocess. Doubly
+    based: an :class:`AdapterError` for the uniform mesh catch, and a
+    ``RuntimeError`` per the #823 falsifier's environment-error contract."""
+
+
 class UnknownProvider(SwarphMeshError):
     """Raised when :class:`SwarphCall` is invoked with a ``provider``
     string that has no registered adapter. Phase 1+ ships adapters
