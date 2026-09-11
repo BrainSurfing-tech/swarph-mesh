@@ -1,12 +1,12 @@
 """Live smoke test for the Antigravity adapter — the #244 envelope gate.
 
 The adapter's JSON parsing is written against the measured envelope
-(``status`` / ``response`` / top-level ``thinking_tokens`` +
-``cache_read_tokens``, card #244 msgs 37898/37911 + ``json:"..."`` struct
-tags in the agy binary). This smoke is the falsifiability gate for that
-shape on the REAL CLI: one $0 subscription call through firejail + agy,
-then assert the durable attribution row — not the adapter return — carries
-the #244 fields.
+(``status`` / ``response`` / token stats NESTED under ``usage``, measured
+live twice on lab-ovh, msg 38001 — the earlier top-level shape from card
+#244 msgs 37898/37911 was one nesting level too high). This smoke is the
+falsifiability gate for that shape on the REAL CLI: one $0 subscription
+call through firejail + agy, then assert the durable attribution row —
+not the adapter return — carries the #244 fields.
 
 Gated on: agy binary, firejail binary, and the antigravity OAuth token all
 present. Skipped on hosts without the subscription lane.
@@ -83,3 +83,10 @@ def test_244_envelope_gate_live(tmp_path):
     assert row["cost_usd"] == 0.0
     assert row["cost_basis"] == "unknown"
     assert row["extra"].get("billing_path") == "subscription"
+    # The can-fail discriminator (lab-ovh msg 38001): every assertion above
+    # tolerates None/0, so an adapter that parses NOTHING still greens —
+    # this gate went green on a total parse miss. Only a real read passes:
+    assert row["input_tokens"] > 0, (
+        "every real call has a prompt — a 0 here is a parse miss, not a "
+        "measurement (agy manufactures no zero; the adapter default does)"
+    )

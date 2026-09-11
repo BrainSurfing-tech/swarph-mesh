@@ -96,16 +96,20 @@ def test_build_prompt_multi_turn():
 # --- chat() mocked ---
 
 def _agy_json(**over):
-    """The measured `agy -p --output-format json` envelope shape (#244)."""
-    payload = {
-        "status": "SUCCESS",
-        "response": "hello world",
+    """The measured `agy -p --output-format json` envelope shape (#244):
+    token stats live NESTED under `usage`, not at top level (measured live
+    twice on lab-ovh, msg 38001). Overrides route to the block that owns
+    the key: known usage keys into `usage`, everything else top-level."""
+    usage = {
         "thinking_tokens": 21,
         "cache_read_tokens": 8129,
         "input_tokens": 12,
         "output_tokens": 34,
+        "total_tokens": 46,  # measured: total = input + output, thinking excluded
     }
-    payload.update(over)
+    payload = {"status": "SUCCESS", "response": "hello world", "usage": usage}
+    for k, v in over.items():
+        (usage if k in usage else payload)[k] = v
     return json.dumps(payload)
 
 
@@ -131,7 +135,7 @@ def test_chat_returns_text_zero_cost_subscription():
 
 
 def test_chat_maps_token_stats_244():
-    """The capture that used to be discarded: top-level thinking_tokens +
+    """The capture that used to be discarded: usage-nested thinking_tokens +
     cache_read_tokens map to the contract fields; the split agy does not
     report (cache_creation_*) stays None, not 0."""
     a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
@@ -154,6 +158,22 @@ def test_chat_reported_zero_stays_zero_not_none():
     assert r.thinking_tokens == 0
     assert r.cache_read_tokens == 0
     assert r.cached is False
+
+
+def test_chat_top_level_stats_are_not_read():
+    """The pre-fix shape assumption: token fields at TOP level, no `usage`.
+    The adapter must NOT read them — a compatibility dual-read would mask
+    the next wire-shape change the way the top-level read masked this one
+    (lab-ovh msg 38001: every field parse-missed while the smoke greened)."""
+    a = AntigravityAdapter(agy_bin="/fake/agy", firejail_bin="/fake/firejail")
+    with patch("subprocess.run", return_value=_mock_proc(
+            stdout=json.dumps({"status": "SUCCESS", "response": "hi",
+                               "thinking_tokens": 21, "cache_read_tokens": 8129,
+                               "input_tokens": 12, "output_tokens": 34}))):
+        with patch("swarph_mesh.adapters.antigravity._audit"):
+            r = asyncio.run(a.chat([ChatMessage(role="user", content="hi")], model=""))
+    assert r.thinking_tokens is None and r.cache_read_tokens is None
+    assert r.input_tokens == 0 and r.output_tokens == 0
 
 
 def test_chat_absent_stats_stay_none():

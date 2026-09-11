@@ -169,7 +169,7 @@ def test_durable_row_extra_carries_vibe_billing_facts(tmp_path, monkeypatch):
 
 
 def test_durable_row_antigravity_lane_carries_agy_stats(tmp_path):
-    """The gemini lane the commander's priority names: agy's top-level
+    """The gemini lane the commander's priority names: agy's usage-nested
     thinking_tokens / cache_read_tokens reach the durable row; the split
     agy does not report stays null; cost_basis stays "unknown" from the
     adapter (the consumer-side price table upgrades it to "calculated")."""
@@ -180,10 +180,16 @@ def test_durable_row_antigravity_lane_carries_agy_stats(tmp_path):
     agy_stdout = json.dumps({
         "status": "SUCCESS",
         "response": "gemini answer",
-        "thinking_tokens": 21,      # droplet's measured call, msg 37898
-        "cache_read_tokens": 8129,
-        "input_tokens": 40,
-        "output_tokens": 60,
+        # token stats nested under `usage` — the measured envelope
+        # (lab-ovh msg 38001; the top-level shape from msg 37898 was
+        # one nesting level too high)
+        "usage": {
+            "thinking_tokens": 21,
+            "cache_read_tokens": 8129,
+            "input_tokens": 40,
+            "output_tokens": 60,
+            "total_tokens": 100,
+        },
     })
     try:
         register_adapter("antigravity", adapter)

@@ -31,9 +31,10 @@ API keys AND ``GOOGLE_APPLICATION_CREDENTIALS`` + project vars (the gap
 ``GeminiCLIAdapter``'s scrub missed) so no metered-billing fallback can fire.
 
 Output (#244): ``--output-format json`` — agy emits a JSON envelope
-(``status`` / ``response`` plus top-level token stats: ``thinking_tokens``,
-``cache_read_tokens``, ``input_tokens``, ``output_tokens``). The adapter maps
-those to the LLMResponse contract fields; for the two Optional fields
+(``status`` / ``response`` plus token stats NESTED under ``usage``:
+``thinking_tokens``, ``cache_read_tokens``, ``input_tokens``,
+``output_tokens``, ``total_tokens``; measured live twice, lab-ovh msg 38001).
+The adapter maps those to the LLMResponse contract fields; for the two Optional fields
 (``thinking_tokens`` / ``cache_read_tokens``) absent stays ``None``
 ("provider did not report it") and a reported 0 stays ``0``, while absent
 ``input_tokens``/``output_tokens`` default to the plain-int 0 as on every
@@ -299,13 +300,19 @@ class AntigravityAdapter:
         def _opt(v: Any) -> Optional[int]:
             return None if v is None else int(v)
 
-        thinking_tokens = _opt(payload.get("thinking_tokens"))
-        cache_read_tokens = _opt(payload.get("cache_read_tokens"))
+        # Token stats live NESTED under `usage`, not at top level (measured
+        # live twice, lab-ovh msg 38001) — same shape claude.py parses.
+        # Deliberately NO top-level fallback read: a dual-read would mask
+        # the next wire-shape change exactly as the pre-fix top-level read
+        # masked this one (every field parse-missed while the smoke greened).
+        usage = payload.get("usage") or {}
+        thinking_tokens = _opt(usage.get("thinking_tokens"))
+        cache_read_tokens = _opt(usage.get("cache_read_tokens"))
 
         return LLMResponse(
             text=text,
-            input_tokens=int(payload.get("input_tokens", 0) or 0),
-            output_tokens=int(payload.get("output_tokens", 0) or 0),
+            input_tokens=int(usage.get("input_tokens", 0) or 0),
+            output_tokens=int(usage.get("output_tokens", 0) or 0),
             thinking_tokens=thinking_tokens,
             cache_read_tokens=cache_read_tokens,
             # agy reports no cache-creation split — None, not 0.
