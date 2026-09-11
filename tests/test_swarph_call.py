@@ -446,12 +446,16 @@ def test_json_harness_retry_folds_244_fields_none_aware(file_writer):
                     thinking_tokens=None,      # first leg: not reported
                     cache_read_tokens=100,
                     cache_creation_1h=None,
+                    cost_usd=0.0,
+                    cost_basis="unknown",      # first leg had no figure
                 )
             return LLMResponse(
                 text='{"ok": true}', duration_s=0.01,
                 thinking_tokens=21,            # retry leg reports it
                 cache_read_tokens=50,
                 cache_creation_1h=None,        # neither leg reports → None
+                cost_usd=0.3,
+                cost_basis="list",             # retry leg carries a figure
             )
 
         async def stream(self, *a, **kw):
@@ -471,4 +475,8 @@ def test_json_harness_retry_folds_244_fields_none_aware(file_writer):
     assert resp.cache_read_tokens == 150       # 100 + 50
     assert resp.cache_creation_1h is None      # None + None stays None
     assert resp.cache_creation_5m is None
+    # nonzero folded cost never rides beside "unknown" — adopt the leg's
+    # basis that actually carried the figure
+    assert abs(resp.cost_usd - 0.3) < 1e-9
+    assert resp.cost_basis == "list"
     reset_registry()

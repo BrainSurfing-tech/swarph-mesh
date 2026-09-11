@@ -355,8 +355,9 @@ def test_chat_marks_cached_when_cache_read_nonzero():
 
 
 def test_chat_uses_total_cost_usd_when_present():
-    """When claude -p surfaces total_cost_usd, prefer it over the
-    PRICING-table compute (catches model-tier + caching exactly)."""
+    """#244: when claude -p surfaces total_cost_usd it is carried as the
+    response's OWN cost (basis "list"), while raw_response keeps the LOCAL
+    table figure as an independent cross-check — not an echo of the CLI."""
     a = ClaudeAdapter(claude_bin="/fake/claude")
     a._verified = True
     with patch(
@@ -369,10 +370,11 @@ def test_chat_uses_total_cost_usd_when_present():
                 model="claude-opus-4-7",
             )
         )
-    assert resp.raw_response["api_metered_cost_usd"] == pytest.approx(0.0042)
-    # #244: the figure is carried as the response's own cost, labeled
     assert resp.cost_usd == pytest.approx(0.0042)
     assert resp.cost_basis == "list"
+    # cross-check stays table-computed: 100 in + 50 out at (5.00, 25.00)/Mtok
+    expected_table = (100 / 1_000_000) * 5.00 + (50 / 1_000_000) * 25.00
+    assert resp.raw_response["api_metered_cost_usd"] == pytest.approx(expected_table)
 
 
 def test_chat_maps_thinking_and_cache_split_244():

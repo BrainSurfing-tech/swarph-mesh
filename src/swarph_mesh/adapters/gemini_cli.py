@@ -176,10 +176,15 @@ def _aggregate_tokens(
         tok = (m or {}).get("tokens") or {}
         inp += int(tok.get("prompt", tok.get("input", 0)) or 0)
         out += int(tok.get("candidates", 0) or 0)
-        if "cached" in tok:
-            cached = (cached or 0) + int(tok.get("cached") or 0)
-        if "thoughts" in tok:
-            thoughts = (thoughts or 0) + int(tok.get("thoughts") or 0)
+        # A key present with value null is "did not report", same as absent
+        # — only a real number counts as reported (matches _opt in the
+        # claude/antigravity lanes; null → 0 is the forbidden collapse).
+        cached_v = tok.get("cached")
+        if cached_v is not None:
+            cached = (cached or 0) + int(cached_v)
+        thoughts_v = tok.get("thoughts")
+        if thoughts_v is not None:
+            thoughts = (thoughts or 0) + int(thoughts_v)
     return inp, out, cached, thoughts
 
 

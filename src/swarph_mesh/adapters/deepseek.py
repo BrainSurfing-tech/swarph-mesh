@@ -273,7 +273,9 @@ class DeepSeekAdapter:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cost_usd=cost,
-            cost_basis="metered",  # #244: real per-token billing on this lane
+            # #244: real per-token billing — but a missing usage block means
+            # the 0.0 is UNMEASURED; "metered" would claim a measured zero.
+            cost_basis="metered" if usage is not None else "unknown",
             duration_s=duration_s,
             cached=cached_tokens > 0,
             raw_response={

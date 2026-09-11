@@ -36,11 +36,14 @@ counts on every call. ``LLMResponse.input_tokens`` /
 
 Cost (#244): the CLI computes a REAL list-price figure for the subscription
 path — ``total_cost_usd`` — and this adapter used to write ``0.0`` over it.
-It now carries that figure with ``cost_basis="list"`` (the CLI's own label
-in ``modelUsage[*].costBasis``). When an older CLI omits ``total_cost_usd``
-the adapter reports ``cost_usd=0.0`` with ``cost_basis="unknown"`` — never
-a synthesised number. The locally-computed metered-equivalent remains in
-``raw_response["api_metered_cost_usd"]`` for auditors.
+It now carries that figure with ``cost_basis="list"`` — the label assigned
+by the settled #244 contract; the CLI itself uses the same word in
+``modelUsage[*].costBasis`` (measured, card #244 msg 37895), which this
+adapter does not read. When an older CLI omits ``total_cost_usd`` the
+adapter reports ``cost_usd=0.0`` with ``cost_basis="unknown"`` — never a
+synthesised number. ``raw_response["api_metered_cost_usd"]`` is always the
+LOCAL table's figure, so it stays an independent cross-check against the
+CLI's number rather than an echo of it.
 """
 
 from __future__ import annotations
@@ -359,6 +362,8 @@ class ClaudeAdapter:
 
         # Metered-equivalent cross-check (what this would have cost on the
         # API at this table's rates) — raw_response only, for auditors.
+        # Deliberately NOT overwritten by total_cost_usd below: an echo of
+        # the CLI's own number would be a cross-check with no zero point.
         in_per_mtok, out_per_mtok = PRICING.get(model, PRICING["_default"])
         api_metered_cost_usd = (
             (input_tokens / 1_000_000.0) * in_per_mtok
@@ -374,7 +379,6 @@ class ClaudeAdapter:
             try:
                 cost_usd = float(payload["total_cost_usd"])
                 cost_basis = "list"
-                api_metered_cost_usd = cost_usd
             except (TypeError, ValueError):
                 pass
 

@@ -208,6 +208,12 @@ class SwarphCall:
                     rv = getattr(r, f)
                     if rv is not None:
                         setattr(resp, f, (getattr(resp, f) or 0) + rv)
+                # If the first leg had no cost figure but a retry leg did,
+                # adopt the retry's basis — otherwise the summed nonzero
+                # cost would sit beside "unknown", the pairing the #244
+                # contract defines as impossible.
+                if resp.cost_basis == "unknown" and r.cost_basis != "unknown":
+                    resp.cost_basis = r.cost_basis
 
         # Post-call hooks (attribution writer included by default)
         for hook in self.hooks.post_call:

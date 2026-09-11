@@ -33,8 +33,11 @@ API keys AND ``GOOGLE_APPLICATION_CREDENTIALS`` + project vars (the gap
 Output (#244): ``--output-format json`` — agy emits a JSON envelope
 (``status`` / ``response`` plus top-level token stats: ``thinking_tokens``,
 ``cache_read_tokens``, ``input_tokens``, ``output_tokens``). The adapter maps
-those to the LLMResponse contract fields; absent stats stay ``None``
-("provider did not report it"), a reported 0 stays ``0``. agy reports NO cost
+those to the LLMResponse contract fields; for the two Optional fields
+(``thinking_tokens`` / ``cache_read_tokens``) absent stays ``None``
+("provider did not report it") and a reported 0 stays ``0``, while absent
+``input_tokens``/``output_tokens`` default to the plain-int 0 as on every
+other lane. agy reports NO cost
 figure, so ``cost_usd=0.0`` with ``cost_basis="unknown"`` — the honest zero;
 a consumer-side price table may overwrite it as ``"calculated"``. A
 non-``SUCCESS`` status raises: agy exits 0 even on failures, so only an
