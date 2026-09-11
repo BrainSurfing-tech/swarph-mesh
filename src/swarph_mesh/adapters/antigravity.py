@@ -63,6 +63,7 @@ from typing import Any, AsyncIterator, Optional
 
 from swarph_shared import scrub_env_for_subprocess
 
+from swarph_mesh.adapters._resolve import which_or_raise
 from swarph_mesh.exceptions import AdapterError
 from swarph_mesh.types import ChatMessage, LLMResponse
 
@@ -95,17 +96,13 @@ def _resolve_agy_bin() -> str:
     home_local = Path.home() / ".local" / "bin" / "agy"
     if home_local.exists():
         return str(home_local)
-    import shutil
-
-    return shutil.which("agy") or str(home_local)
+    return which_or_raise("agy", env_var="AGY_BIN", checked=(str(home_local),))
 
 
 def _resolve_firejail_bin() -> str:
     if os.environ.get("FIREJAIL_BIN"):
         return os.environ["FIREJAIL_BIN"]
-    import shutil
-
-    return shutil.which("firejail") or "/usr/bin/firejail"
+    return which_or_raise("firejail", env_var="FIREJAIL_BIN")
 
 
 def _build_prompt(messages: list[ChatMessage], system_prompt: Optional[str]) -> str:

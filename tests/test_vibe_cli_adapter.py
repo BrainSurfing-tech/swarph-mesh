@@ -286,16 +286,21 @@ def test_absolute_vibe_bin_override_is_honoured(monkeypatch):
     assert _resolve_vibe_bin() == "/custom/vibe"
 
 
-def test_registry_returns_the_vibe_adapter():
+def test_registry_returns_the_vibe_adapter(monkeypatch):
     from swarph_mesh.adapters import get_adapter
 
+    # #823: construction now fail-closes on missing binaries, so pin
+    # overrides for boxes (CI) that have neither vibe nor firejail.
+    monkeypatch.setenv("VIBE_BIN", "/custom/vibe")
+    monkeypatch.setenv("FIREJAIL_BIN", "/custom/firejail")
     adapter = get_adapter("vibe-cli", api_key="k")
     assert isinstance(adapter, VibeCLIAdapter)
     assert adapter.name == "vibe-cli"
 
 
 def test_cost_per_token_is_flat_rate():
-    assert VibeCLIAdapter(api_key="k").cost_per_token(DEFAULT_MODEL) == (0.0, 0.0)
+    a = VibeCLIAdapter(api_key="k", vibe_bin="/fake/vibe", firejail_bin="/fake/firejail")
+    assert a.cost_per_token(DEFAULT_MODEL) == (0.0, 0.0)
 
 
 def test_prompt_rendering_matches_the_sibling_adapters():
