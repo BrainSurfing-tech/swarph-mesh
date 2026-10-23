@@ -65,6 +65,8 @@
     "meta-muse",
     "razorpeter",
     "commander",
-    "grok-bot"
+    "grok-bot",
+    "opencode",
+    "copilot"
   ]
 }
