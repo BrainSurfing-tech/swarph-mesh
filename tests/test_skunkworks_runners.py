@@ -189,7 +189,7 @@ def test_research_argv_is_exactly_the_contract():
 
 def test_research_runs_in_an_empty_cwd_with_a_scrubbed_env(tmp_path, monkeypatch):
     """Clause 5. Mutation: pass env=os.environ -> the child sees ANTHROPIC_API_KEY."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test-not-real")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "placeholder-not-a-credential")
     monkeypatch.setenv("OPENAI_API_KEY", "x")
     claude = FakeClaude()
     seen = {}
