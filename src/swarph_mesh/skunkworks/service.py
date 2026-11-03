@@ -21,6 +21,7 @@ from .ceilings import (
     runs_today,
     session_blocked,
 )
+from .persona import load_persona
 from .pipeline import Pipeline, PipelineNode
 from .request import SkunkworksRequest
 from .runners import (
@@ -126,6 +127,9 @@ def start_run(
     on_stage: Callable[[RunState, str], None] = lambda s, stage: None,
 ) -> RunState:
     cell = request.requesting_swarm
+    load_persona(
+        request.persona, base_dir=persona_dir
+    )  # a typo'd persona costs no daily slot
     if session_blocked(now()):
         raise RunRefused(
             "refused: US cash session (Mon-Fri 09:30-16:00 America/New_York)"

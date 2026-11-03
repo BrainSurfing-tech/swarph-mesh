@@ -72,31 +72,11 @@ ARCHITECT_SCHEMA = json.dumps(
     }
 )
 
-# Transport: post(url, body) / get(url) -> (http_status, parsed_json). Injected so no
-# test touches a network; the CLI passes its own gateway client.
+# Transport: post(url, body) / get(url) -> (http_status, parsed_json). Always injected: no
+# test touches a network, and the CLI passes the same gateway helpers `swarph board` uses
+# (so the library never holds a token).
 Post = Callable[[str, dict], Tuple[int, dict]]
 Get = Callable[[str], Tuple[int, dict]]
-
-
-def httpx_transport(token: str, timeout: float = 15.0) -> Tuple[Post, Get]:
-    """Default transport for library users. The token is only ever put in a header."""
-    import httpx
-
-    headers = {"Authorization": f"Bearer {token}"}
-
-    def _parse(r: "httpx.Response") -> Tuple[int, dict]:
-        try:
-            return r.status_code, r.json()
-        except ValueError:
-            return r.status_code, {}
-
-    def post(url: str, body: dict) -> Tuple[int, dict]:
-        return _parse(httpx.post(url, json=body, headers=headers, timeout=timeout))
-
-    def get(url: str) -> Tuple[int, dict]:
-        return _parse(httpx.get(url, headers=headers, timeout=timeout))
-
-    return post, get
 
 
 class QueueRunner:

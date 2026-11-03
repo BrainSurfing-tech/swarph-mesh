@@ -155,7 +155,7 @@ def test_start_is_refused_in_the_session_window_and_creates_nothing(tmp_path):
     assert not any(tmp_path.rglob("sk_*")) and gw.posts == 0
 
 
-def test_a_full_faked_run_uses_three_jobs_one_at_a_time(tmp_path):
+def test_a_full_faked_run_uses_four_jobs_one_at_a_time(tmp_path):
     gw, fac = _fake_factory(tmp_path)
     st = start_run(
         _req(), runners_factory=fac, state_root=tmp_path, now=lambda: SATURDAY
@@ -266,3 +266,16 @@ def test_stale_ceiling_constants():
         ceilings.MAX_RESEARCH_QUERIES,
         ceilings.MAX_RUNS_PER_DAY,
     ) == (10, 8, 3)
+
+
+def test_unknown_persona_is_refused_before_any_run_dir_or_daily_slot(tmp_path):
+    gw, fac = _fake_factory(tmp_path)
+    with pytest.raises(FileNotFoundError):
+        start_run(
+            _req(persona="no-such-persona"),
+            runners_factory=fac,
+            state_root=tmp_path,
+            now=lambda: SATURDAY,
+        )
+    assert not list((tmp_path / "cell-a" / "skunkworks").glob("sk_*"))
+    assert gw.posts == 0
