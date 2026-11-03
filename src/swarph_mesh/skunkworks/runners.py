@@ -309,16 +309,28 @@ def _resolve_host(host: str) -> list:
     return [ai[4][0] for ai in socket.getaddrinfo(host, None)]
 
 
+# These carry an IPv4 address in their low 32 bits, which is_global can't be trusted to judge.
+_EMBEDS_IPV4 = tuple(map(ipaddress.ip_network, ("::ffff:0:0/96", "64:ff9b::/96", "::/96")))
+_GLOBAL_UNICAST = ipaddress.ip_network("2000::/3")
+
+
+def _is_public(addr: str) -> bool:
+    ip = ipaddress.ip_address(addr)
+    if ip.version == 6:
+        if any(ip in net for net in _EMBEDS_IPV4):
+            ip = ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+        elif ip not in _GLOBAL_UNICAST or ip.sixtofour or ip.teredo:
+            return False
+    return ip.is_global
+
+
 def _all_global(host: str, resolve: Callable[[str], list]) -> bool:
     """True only if every address the host resolves to is publicly routable."""
     try:
         addrs = [str(ipaddress.ip_address(host))]  # a literal needs no lookup
     except ValueError:
         addrs = list(resolve(host))
-    # an address with a scope id (fe80::1%eth0) is never global; strip it for parsing
-    return bool(addrs) and all(
-        ipaddress.ip_address(str(a).split("%")[0]).is_global for a in addrs
-    )
+    return bool(addrs) and all(_is_public(a) for a in addrs)
 
 
 def url_status(

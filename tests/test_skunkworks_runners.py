@@ -1,5 +1,6 @@
 """Clauses 4 and 5: the queue runner and the research runner, with fakes only."""
 
+import ipaddress
 import json
 import os
 import socket
@@ -472,6 +473,96 @@ def test_public_to_internal_redirect_is_not_followed():
     assert url_status("https://pub.example/a", get, lambda h: table[h]) == "dead"
     assert [c[0] for c in get.calls] == ["https://pub.example/a"]
     assert all(c[1]["follow_redirects"] is False for c in get.calls)
+
+
+NON_PUBLIC_V6 = [
+    # IPv4-mapped
+    "::ffff:127.0.0.1", "::ffff:10.0.0.1", "::ffff:100.64.0.1", "::ffff:169.254.169.254",
+    # NAT64
+    "64:ff9b::7f00:1", "64:ff9b::a00:1", "64:ff9b::6440:1", "64:ff9b::a9fe:a9fe",
+    # IPv4-compatible
+    "::7f00:1", "::a00:1", "::6440:1", "::a9fe:a9fe",
+    # 6to4 (non-public even wrapping a public address)
+    "2002:7f00:1::", "2002:a00:1::", "2002:6440:1::", "2002:a9fe:a9fe::", "2002:808:808::",
+    # Teredo
+    "2001:0:4136:e378:8000:63bf:3fff:fdd2",
+    # IPv4-translated
+    "::ffff:0:7f00:1", "::ffff:0:a00:1",
+    # local-use NAT64
+    "64:ff9b:1::7f00:1",
+    # other
+    "fec0::1", "ff02::1", "ff0e::1", "1::1", "4000::1", "5f00::1", "8000::1", "100::1",
+    "2001:db8::1", "fd7a:115c:a1e0::1", "fe80::1", "::1", "::",
+]  # fmt: skip
+
+PUBLIC_ADDRS = ["::ffff:8.8.8.8", "64:ff9b::808:808", "::808:808", "2606:4700::1", "93.184.216.34"]
+
+
+def _no_lookup(host):
+    raise AssertionError("a literal must not be resolved")
+
+
+@pytest.mark.parametrize("addr", NON_PUBLIC_V6)
+def test_non_public_ipv6_literal_is_dead_and_never_fetched(addr):
+    get = _recording_get({})
+    assert url_status(f"http://[{addr}]/", get, _no_lookup) == "dead"
+    assert get.calls == []
+
+
+@pytest.mark.parametrize("addr", NON_PUBLIC_V6)
+def test_name_resolving_to_non_public_ipv6_is_dead_and_never_fetched(addr):
+    get = _recording_get({})
+    assert url_status("https://bad.example/", get, lambda h: [addr]) == "dead"
+    assert get.calls == []
+
+
+@pytest.mark.parametrize("addr", NON_PUBLIC_V6)
+def test_non_public_ipv6_among_public_addresses_is_dead(addr):
+    get = _recording_get({})
+    resolver = lambda h: ["93.184.216.34", addr]
+    assert url_status("https://bad.example/", get, resolver) == "dead"
+    assert get.calls == []
+
+
+@pytest.mark.parametrize("addr", ["2002:808:808::", "2001:0:4136:e378:8000:63bf:3fff:fdd2"])
+def test_6to4_and_teredo_are_dead_even_if_is_global_says_otherwise(monkeypatch, addr):
+    """Stands in for a Python whose is_global reads these as global.
+
+    Mutation: drop the 6to4 or the Teredo check in _is_public -> this fails.
+    """
+    monkeypatch.setattr(ipaddress.IPv6Address, "is_global", property(lambda self: True))
+    get = _recording_get({})
+    assert url_status(f"http://[{addr}]/", get, _no_lookup) == "dead"
+    assert get.calls == []
+
+
+def test_scoped_ipv6_from_a_resolver_is_dead():
+    get = _recording_get({})
+    assert url_status("https://bad.example/", get, lambda h: ["fe80::1%eth0"]) == "dead"
+    assert get.calls == []
+
+
+def test_public_to_mapped_loopback_redirect_is_not_followed():
+    get = _recording_get(
+        {"https://pub.example/a": _Redirect(302, "http://[::ffff:127.0.0.1]/")}
+    )
+    assert url_status("https://pub.example/a", get, public_resolve) == "dead"
+    assert [c[0] for c in get.calls] == ["https://pub.example/a"]
+
+
+@pytest.mark.parametrize("addr", PUBLIC_ADDRS)
+def test_real_public_addresses_still_pass_as_literal(addr):
+    get = _recording_get({})
+    url = f"http://[{addr}]/" if ":" in addr else f"http://{addr}/"
+    assert url_status(url, get, _no_lookup) == "live"
+    assert len(get.calls) == 1
+
+
+@pytest.mark.parametrize("addr", PUBLIC_ADDRS)
+def test_real_public_addresses_still_pass_through_a_resolver(addr):
+    get = _recording_get({})
+    assert url_status("https://good.example/", get, lambda h: [addr]) == "live"
+    assert len(get.calls) == 1
 
 
 def test_public_redirect_chain_is_followed_by_us_and_capped_at_five_hops():
