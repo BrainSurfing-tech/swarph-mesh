@@ -9,6 +9,7 @@ import os
 import sys
 import time
 from datetime import datetime, time as dtime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Optional
 from zoneinfo import ZoneInfo
@@ -18,7 +19,14 @@ MAX_RESEARCH_QUERIES = 8
 MAX_RUN_SECONDS = 1800
 MAX_RUNS_PER_DAY = 3  # per cell per UTC day, ERROR runs included
 
-_NY = ZoneInfo("America/New_York")
+
+@lru_cache(maxsize=1)
+def _ny() -> ZoneInfo:
+    # Resolved on first use, not at import: a host without tz data (Windows without the
+    # tzdata package) still imports this module, and fails with a clear error when asked.
+    return ZoneInfo("America/New_York")
+
+
 SESSION_OPEN = dtime(9, 30)
 SESSION_CLOSE = dtime(16, 0)
 
@@ -37,7 +45,7 @@ def session_blocked(now: Optional[datetime] = None) -> bool:
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
-    ny = now.astimezone(_NY)
+    ny = now.astimezone(_ny())
     return ny.weekday() < 5 and SESSION_OPEN <= ny.time() < SESSION_CLOSE
 
 
