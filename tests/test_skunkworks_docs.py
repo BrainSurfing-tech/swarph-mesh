@@ -1,4 +1,5 @@
 """Clause 13: the README section names the commands, the New York window, the billing and no code."""
+
 from pathlib import Path
 
 README = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
