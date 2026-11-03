@@ -19,22 +19,23 @@ from typing import Callable
 
 from swarph_mesh.registry.spec import AdapterSpec
 
-# The FIRST real external capability the indexer is meant to hold: the hosting
-# cell's session-isolated Skunkworks pipeline — a mesh-native MESH_TOOL (NOT an
-# AdapterSpec, but a capability the indexer surfaces). Reference capability
-# for the indexer.
+# The FIRST real external capability the indexer is meant to hold: the Skunkworks
+# research pipeline, run by any cell through the swarph CLI. Reference capability for the
+# indexer (a mesh-native MESH_TOOL, NOT an AdapterSpec). The name is the original
+# registry key, kept so discovery by name still finds it.
 SKUNKWORKS_CAPABILITY = {
     "name": "adversarial-council-pipeline",
     "kind": "mesh_tool",
     "intents": ["MESH_TOOL"],
     "invocation": {
-        "channel": "MESH_TOOL",
-        "protocol": "LAUNCH_SKUNKWORKS: <seed>",
+        "channel": "CLI",
+        "command": "swarph skunkworks run --card <N> --persona <P> --seed-file <F> --as <cell>",
+        "billing": "subscription",
         "host": "<hosting-cell>",
     },
     "note": (
-        "the hosting cell's session-isolated Skunkworks daemon — the indexer's reference "
-        "capability."
+        "ideation, web research and an architect audit on subscription lanes, ending at a "
+        "human gate; the requesting cell runs it, no daemon, nothing metered."
     ),
 }
 

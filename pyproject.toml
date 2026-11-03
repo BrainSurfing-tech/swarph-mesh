@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swarph-mesh"
-version = "0.9.0"
+version = "0.9.1"
 description = "Model-agnostic Python substrate for the swarph-mesh ecosystem — the graph protocol third-party CLIs plug into. v0.8.0 adds the VibeCLIAdapter (provider 'vibe-cli'): the EU-domiciled SUBSCRIPTION Mistral lane via firejail-sandboxed `vibe -p`, with a --max-price hard cost ceiling enforced per call, no tools at all, an ephemeral VIBE_HOME (stateless by construction), the prompt piped on stdin so it never touches disk, and a declared-not-attested jurisdiction attribute for residency-aware routing."
 readme = "README.md"
 license = { text = "MIT" }
@@ -29,6 +29,7 @@ classifiers = [
 dependencies = [
     "swarph-shared>=0.2.0",
     "pydantic>=2.0",
+    "tzdata; sys_platform == 'win32'",
     # Phase 1 — Gemini adapter wraps the bridge (PLAN.md §3 ship order #1)
     "langgraph-genai-bridge>=0.1.5",
     "langchain-core>=0.3",
@@ -68,6 +69,7 @@ where = ["src"]
 # v0.7.0 — PEP 561 marker so third-party type-checkers see our types.
 [tool.setuptools.package-data]
 swarph_mesh = ["py.typed"]
+"swarph_mesh.skunkworks" = ["personas/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
