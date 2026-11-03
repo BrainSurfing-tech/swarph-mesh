@@ -18,7 +18,7 @@ from swarph_mesh.skunkworks.artifacts import persist
 from swarph_mesh.skunkworks.ceilings import JobGuard, runs_today
 from swarph_mesh.skunkworks.service import default_runners, start_run, sweep_dead_runs
 from swarph_mesh.skunkworks.state import RunState
-from skunk_fakes import SATURDAY, FakeClaude, FakeGateway, live_get
+from skunk_fakes import SATURDAY, FakeClaude, FakeGateway, live_get, public_resolve
 
 
 def utc(y, mo, d, h, mi, s=0):
@@ -135,6 +135,7 @@ def _fake_factory(tmp_path, gw=None, claude=None):
         claude_bin="/bin/claude",
         research_run=claude or FakeClaude(),
         url_get=live_get,
+        url_resolve=public_resolve,
     )
 
 

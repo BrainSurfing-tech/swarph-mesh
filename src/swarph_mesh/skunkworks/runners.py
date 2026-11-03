@@ -8,6 +8,7 @@ the API-key variables scrubbed from the child environment.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import os
 import re
@@ -19,7 +20,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from swarph_shared.subprocess_env import scrub_env_for_subprocess
 
@@ -300,21 +301,64 @@ def _is_dns_failure(exc: BaseException) -> bool:
     return False
 
 
-def url_status(url: str, get: Optional[Callable[..., Any]] = None) -> str:
-    """'live' (<400), 'dead' (404, 410, DNS failure) or 'unverified' (everything else,
-    401/403/429/5xx/timeouts included, since a blocking site is not a missing page)."""
-    if urlparse(url).scheme not in ("http", "https"):
-        return "unverified"
+MAX_REDIRECT_HOPS = 5
+_REDIRECTS = (301, 302, 303, 307, 308)
+
+
+def _resolve_host(host: str) -> list:
+    return [ai[4][0] for ai in socket.getaddrinfo(host, None)]
+
+
+def _all_global(host: str, resolve: Callable[[str], list]) -> bool:
+    """True only if every address the host resolves to is publicly routable."""
     try:
-        resp = (get or _http_get)(
-            url, headers={"User-Agent": _BROWSER_UA}, timeout=15, follow_redirects=True
-        )
-    except Exception as exc:
-        return "dead" if _is_dns_failure(exc) else "unverified"
-    code = resp.status_code
-    if code < 400:
-        return "live"
-    return "dead" if code in (404, 410) else "unverified"
+        addrs = [str(ipaddress.ip_address(host))]  # a literal needs no lookup
+    except ValueError:
+        addrs = list(resolve(host))
+    # an address with a scope id (fe80::1%eth0) is never global; strip it for parsing
+    return bool(addrs) and all(
+        ipaddress.ip_address(str(a).split("%")[0]).is_global for a in addrs
+    )
+
+
+def url_status(
+    url: str,
+    get: Optional[Callable[..., Any]] = None,
+    resolve: Optional[Callable[[str], list]] = None,
+) -> str:
+    """'live' (<400), 'dead' (404, 410, DNS failure, or a non-public address that is
+    never fetched) or 'unverified' (everything else, 401/403/429/5xx/timeouts and more
+    than MAX_REDIRECT_HOPS redirects included, since a blocking site is not a missing page).
+
+    Redirects are followed here, not by the HTTP client, so every hop's host gets the
+    same public-address check before it is fetched.
+    """
+    # ponytail: DNS rebinding between this check and the GET is not covered; upgrade path
+    # is to pin the resolved IP for the connection.
+    for _ in range(MAX_REDIRECT_HOPS + 1):
+        parts = urlparse(url)
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            return "unverified"
+        try:
+            if not _all_global(parts.hostname, resolve or _resolve_host):
+                return "dead"
+            resp = (get or _http_get)(
+                url,
+                headers={"User-Agent": _BROWSER_UA},
+                timeout=15,
+                follow_redirects=False,
+            )
+        except Exception as exc:
+            return "dead" if _is_dns_failure(exc) else "unverified"
+        code = resp.status_code
+        loc = (getattr(resp, "headers", None) or {}).get("location")
+        if code in _REDIRECTS and loc:
+            url = urljoin(url, loc)
+            continue
+        if code < 400:
+            return "live"
+        return "dead" if code in (404, 410) else "unverified"
+    return "unverified"
 
 
 class ResearchRunner:
@@ -327,8 +371,10 @@ class ResearchRunner:
         run: Callable[..., Any] = subprocess.run,
         get: Optional[Callable[..., Any]] = None,
         claude_bin: Optional[str] = None,
+        resolve: Optional[Callable[[str], list]] = None,
     ):
         self.guard, self.run, self.get, self.claude_bin = guard, run, get, claude_bin
+        self.resolve = resolve
 
     def __call__(self, ctx: Dict[str, Any]) -> Dict[str, Any]:
         self.guard.check()
@@ -366,7 +412,7 @@ class ResearchRunner:
         urls = [u for u in out["urls"] if isinstance(u, str)]
         if (
             out.get("search_failed")
-            or _NO_SEARCH_RE.search(findings)
+            or (not urls and _NO_SEARCH_RE.search(findings))
             or (findings.strip() and not urls and not out.get("found_nothing"))
         ):
             raise RunRefused(
@@ -374,7 +420,7 @@ class ResearchRunner:
             )
         kept, dropped, unverified = [], 0, 0
         for u in urls:
-            s = url_status(u, self.get)
+            s = url_status(u, self.get, self.resolve)
             if s == "dead":
                 dropped += 1
                 continue

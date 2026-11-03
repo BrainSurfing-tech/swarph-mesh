@@ -29,6 +29,7 @@ classifiers = [
 dependencies = [
     "swarph-shared>=0.2.0",
     "pydantic>=2.0",
+    "tzdata; sys_platform == 'win32'",
     # Phase 1 — Gemini adapter wraps the bridge (PLAN.md §3 ship order #1)
     "langgraph-genai-bridge>=0.1.5",
     "langchain-core>=0.3",

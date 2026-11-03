@@ -95,3 +95,8 @@ def live_get(url, **kw):
         status_code = 200
 
     return R()
+
+
+def public_resolve(host):
+    """Resolver fake: every name is a public address, so no test touches DNS."""
+    return ["93.184.216.34"]

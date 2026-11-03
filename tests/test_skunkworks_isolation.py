@@ -7,7 +7,14 @@ import pytest
 from swarph_mesh.skunkworks import RunStatus, SkunkworksRequest
 from swarph_mesh.skunkworks.runners import RESEARCH_INSTRUCTIONS
 from swarph_mesh.skunkworks.service import default_runners, start_run
-from skunk_fakes import IDEA, SATURDAY, FakeClaude, FakeGateway, live_get
+from skunk_fakes import (
+    IDEA,
+    SATURDAY,
+    FakeClaude,
+    FakeGateway,
+    live_get,
+    public_resolve,
+)
 
 OLD, CTX, IDEA_SYS, ARCH_SYS = (
     "CANARY-OLD-RUN",
@@ -51,6 +58,7 @@ def captured(tmp_path):
         claude_bin="/x/claude",
         research_run=claude,
         url_get=live_get,
+        url_resolve=public_resolve,
     )
     req = SkunkworksRequest(
         requesting_swarm="cell-a",

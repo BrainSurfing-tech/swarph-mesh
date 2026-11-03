@@ -56,6 +56,7 @@ def default_runners(
     claude_bin: Optional[str] = None,
     research_run: Optional[Callable[..., Any]] = None,
     url_get: Optional[Callable[..., Any]] = None,
+    url_resolve: Optional[Callable[[str], list]] = None,
 ) -> RunnersFactory:
     def make(run_id: str, guard: JobGuard, jobs: List[Dict[str, Any]]):
         common: Dict[str, Any] = dict(
@@ -79,6 +80,7 @@ def default_runners(
                 guard=guard,
                 claude_bin=claude_bin,
                 get=url_get,
+                resolve=url_resolve,
                 **({"run": research_run} if research_run else {}),
             ),
             QueueRunner(
