@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 `swarph-mesh` is the graph-protocol substrate for the swarph-mesh ecosystem — every CLI is a node, the `LLMAdapter` Protocol is the third-party node-implementer contract. Changes to that contract follow strict policy; ordinary feature additions follow ordinary semver.
 
+## [0.9.1] — 2026-11-03
+
+### Added — `swarph_mesh.skunkworks` (card #1405)
+
+- **Skunkworks research pipeline on subscription lanes**: ideation, web research, an architect audit, then a human gate (`Pipeline.approve`). Adapted from the `research/skunkworks` scaffold of a private repo at commit `7d37186`; its persona pack and curvature modifier were not copied. Nothing metered, no daemon, no persisted queue, no free-text DM protocol: the requesting cell's process runs it, and a killed process leaves the run in ERROR (nothing resumes it).
+- **Runners**: ideation (`gemini-4-argon-high`) and the architect (`claude-opus-5-5`) are `subscription_chat` jobs on `POST /council-batch`, polled to a terminal state, one at a time, with a fresh `debate_id` per job and `from_node` set. The run is ERROR unless `result_json` says `served_lane`/`served_model` match (labels only: they do not prove which model answered). Research is a local `claude -p --model claude-sonnet-5-5` with `WebSearch,WebFetch` only, an empty MCP config, an empty cwd and the API-key variables scrubbed from the child environment; URLs are checked (404, 410 and DNS failures dropped, 401/403/429/5xx kept as unverified).
+- **Ceilings** (`skunkworks/ceilings.py`): 10 jobs per run (checked before send), 8 research queries (the rest are cut and recorded), 1800 s per run, one live run per cell, 3 runs per cell per UTC day, and a refusal on weekdays 09:30-16:00 America/New_York (no holiday calendar), checked at start and before every job; `STOP` file in the run directory.
+- `personas/swarph.md` ships as package data. State lives under `<state root>/<cell>/skunkworks/<run_id>/` (`SWARPH_STATE`, `SWARPH_STATE_ROOT`, else `~/swarph_state`).
+- Fixed relative to the copied scaffold: the architect now receives this run's ideation and research; `_stage_research` no longer swallows a refusal; the gate and `approve` have no `override`.
+
+### Changed — registry
+
+- `SKUNKWORKS_CAPABILITY` and `SKUNKWORKS_FEATURE` now name the `swarph skunkworks` command and subscription billing. The old DM launch phrase and its tagged reply protocol are removed. The registry keys are unchanged.
+
 ## [0.9.0] — 2026-09-11
 
 ### Added — #244 cost-basis + token-capture contract

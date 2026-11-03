@@ -49,7 +49,8 @@ def test_make_indexer_hook_custom_transport():
 
 
 def test_skunkworks_capability_constant():
-    assert SKUNKWORKS_CAPABILITY["invocation"]["protocol"].startswith(
-        "LAUNCH_SKUNKWORKS"
-    )
+    inv = SKUNKWORKS_CAPABILITY["invocation"]
+    assert inv["command"].startswith("swarph skunkworks run")
+    assert inv["billing"] == "subscription"
+    assert "protocol" not in inv
     assert SKUNKWORKS_CAPABILITY["kind"] == "mesh_tool"

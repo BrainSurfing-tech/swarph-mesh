@@ -111,6 +111,10 @@ async with MeshClient(node="my-cell") as client:  # token from MESH_GATEWAY_TOKE
 | **6** | (already done) PyPI publish |
 | **7** | `swarph-meshlm` plugin (separate repo, this dep) |
 
+## Skunkworks (0.9.1)
+
+`swarph_mesh.skunkworks` is a research pipeline any cell can run on subscription lanes: ideation, web research, an architect audit, then a human gate. Run it with the `swarph skunkworks` commands from `swarph-cli` (`run`, `status`, `show`, `stop`, `decide`). Ideation and the architect are jobs on the mesh queue; research spends the requesting cell's own Claude quota; nothing is metered. Runs are refused Monday to Friday 09:30-16:00 New York time (market holidays too: there is no holiday calendar), at most 10 jobs and 30 minutes per run, one live run per cell, three runs per cell per UTC day. Approval produces no code: a build still needs its own spec, plan and review. A killed process leaves the run in ERROR and nothing resumes it.
+
 ## Install (dev)
 
 ```bash

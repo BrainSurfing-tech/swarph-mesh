@@ -8,7 +8,7 @@ capabilities. This is the peer-register merge discipline, made reusable.
 
 CALLER-BINDING NOTE: the gateway enforces caller-binding — a cell can only register
 ITS OWN name. So `gateway_publisher` is for a cell publishing its own features; the
-Skunkworks feature (hosted by the hosting cell) must be published BY the hosting cell.
+Skunkworks feature must be published BY the cell that runs it.
 `SKUNKWORKS_FEATURE` is the ready artifact for the hosting cell to self-publish.
 
 DURABILITY NOTE: a cell whose `capabilities` come from a daemon health-snapshot (e.g.
@@ -69,27 +69,25 @@ def spec_to_feature(spec, *, description, what_it_does, how_to_request, tags, ce
     }
 
 
-# Reference TEMPLATE for a session-isolated Skunkworks R&D pipeline. A hosting cell
-# adapts it to its own LLM/runtime and self-publishes (BYO LLM/subscription).
+# Reference TEMPLATE for the Skunkworks research pipeline. The cell that runs it
+# self-publishes (the id is the original registry key, kept for discovery). It runs on subscription lanes through the swarph CLI.
 SKUNKWORKS_FEATURE = {
     "id": "adversarial-council-pipeline",
-    "name": "Adversarial Council Skunkworks pipeline",
+    "name": "Skunkworks research pipeline",
     "description": (
-        "Session-isolated multi-agent R&D pipeline (ideation → deep-research → "
-        "architect-audit → adversarial-council → arbiter). Generates and "
-        "falsifiability-tests research theses; returns a synthesized, red-teamed verdict."
+        "Research pipeline on subscription lanes: ideation, web research, an architect "
+        "audit, then a human gate. Approval produces no code."
     ),
     "what_it_does": (
-        "Takes a seed/thesis and runs the full Skunkworks daemon end-to-end, returning "
-        "a synthesized architectural verdict with the adversarial critiques folded in."
+        "Takes a seed and a board card, runs ideation and the architect on the mesh queue "
+        "and research on the requesting cell's own Claude, and posts the results to the card."
     ),
     "how_to_request": (
-        "DM the hosting cell (kind=question) with a body starting EXACTLY "
-        "'LAUNCH_SKUNKWORKS: <seed>'. Pipeline prompts arrive tagged "
-        "'[SKUNKWORKS:<UUID>|STEP:<NAME>]'; reply with structured direct answers, "
-        "UUID-correlated, never out-of-band."
+        "swarph skunkworks run --card <N> --persona <P> --seed-file <F> --as <cell>; then "
+        "status, show, stop and decide. Billing is subscription only (no metered API). "
+        "Refused 09:30-16:00 New York time on weekdays."
     ),
-    "runtime": "configurable — persistent swarph-session LLM | LLM service | sub-agent structure (bring your own LLM/subscription)",
-    "tags": ["skunkworks", "research", "adversarial-council", "pipeline", "mesh-tool", "template"],
+    "runtime": "the requesting cell's process; no daemon",
+    "tags": ["skunkworks", "research", "pipeline", "mesh-tool", "subscription", "template"],
     "cell": "<hosting-cell>",
 }

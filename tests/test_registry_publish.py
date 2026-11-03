@@ -59,7 +59,8 @@ def test_publish_is_idempotent_by_id():
 def test_skunkworks_feature_shape():
     f = SKUNKWORKS_FEATURE
     assert f["cell"] == "<hosting-cell>"                        # generic template: hosting cell self-publishes
-    assert f["how_to_request"].count("LAUNCH_SKUNKWORKS") >= 1
+    assert "swarph skunkworks run" in f["how_to_request"]
+    assert "subscription" in f["how_to_request"]
     assert "skunkworks" in f["tags"]
     assert "template" in f["tags"]
     assert "runtime" in f
