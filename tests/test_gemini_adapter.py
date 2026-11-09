@@ -33,7 +33,7 @@ def test_adapter_satisfies_protocol():
 
 def test_default_model_is_flash():
     a = GeminiAdapter(api_key="fake")
-    assert a.default_model == "gemini-2.5-flash"
+    assert a.default_model == "gemini-3.8-flash"
 
 
 # ---------------------------------------------------------------------------

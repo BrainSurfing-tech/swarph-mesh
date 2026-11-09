@@ -99,7 +99,7 @@ class GeminiAdapter:
     """``LLMAdapter`` implementation backed by ``langgraph-genai-bridge``."""
 
     name = "gemini"
-    default_model = "gemini-2.5-flash"
+    default_model = "gemini-3.8-flash"
 
     def __init__(
         self,
