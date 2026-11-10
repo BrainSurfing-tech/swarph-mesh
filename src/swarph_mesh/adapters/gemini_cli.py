@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 # which is throttle-prone + timeout-prone on the subscription tier. Pin a
 # GA model for worker reliability; override via GEMINI_SUBSCRIPTION_MODEL
 # (e.g. to ``gemini-flash-3.5`` the day it goes GA) with no redeploy.
-DEFAULT_MODEL = os.environ.get("GEMINI_SUBSCRIPTION_MODEL", "gemini-2.5-flash")
+DEFAULT_MODEL = os.environ.get("GEMINI_SUBSCRIPTION_MODEL", "gemini-3.8-flash")
 DEFAULT_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_SUBSCRIPTION_TIMEOUT", "120"))
 
 
